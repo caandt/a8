@@ -1,0 +1,89 @@
+(* minimal aarch64 decoder *)
+Require Import Util.
+
+Variant ityp :=
+  | ignore
+  | invalid
+  | ADR (imm Rd: int)
+  | ADRP (imm Rd: int)
+  | Bcond (imm cond: int)
+  | BR (Rn: int)
+  | B (imm: int)
+  | BL (imm: int)
+  | b_imm
+  | comp_b
+  | test_b.
+
+Definition dc_b_cond (n:int) :=
+  let o0 := n[4] in
+  let o1 := n[24] in
+  if (o0 =? 0) && (o1 =? 0)
+  then let imm := n[5,24] in
+       let cond := n[0,4] in
+       Bcond imm cond
+  else ignore.
+Definition dc_b_reg (n:int) :=
+  let opc := n[21,25] in
+  let op2 := n[16,21] in
+  let op3 := n[10,16] in
+  let Rn := n[5,10] in
+  let op4 := n[0,5] in
+  if (op2 =? 31)
+  then match tob4 opc with
+       | 0b0000 =>
+           if (op3 =? 0)
+           then
+             if (op4 =? 0)
+             then BR Rn
+             else ignore
+           else invalid
+       | _ => invalid
+       end
+  else ignore.
+Definition dc_b_imm n :=
+  let imm26 := n[0,26] in
+  let op := n[31] in
+  if (op =? 0)
+  then B imm26
+  else BL imm26.
+Definition dc_b (n:int) :=
+  let op0 := n[29,32] in
+  (* let op1 := n[12,26] in *)
+  (* let op2 := n[0,5] in *)
+  match tob4 op0 with
+  | 0b0010 =>
+      if (n[25] =? 0)
+      then dc_b_cond n
+      else ignore
+  | 0b0110 =>
+      if (n[25] =? 1)
+      then dc_b_reg n
+      else ignore
+  | b4 O _ O O => b_imm
+  | b4 O _ O I =>
+      if (n[25] =? 0)
+      then comp_b
+      else test_b
+  | _ => ignore
+  end.
+Definition dc_pcr n :=
+  let op := n[31] in
+  let immlo := n[29,31] in
+  let immhi := n[5,24] in
+  let Rd := n[0,4] in
+  let imm := immhi << 2 lor immlo in
+  if (op =? 0)
+  then ADR imm Rd
+  else ADRP imm Rd.
+Definition dc_dpi n :=
+  let op0 := n[23,26] in
+  if (op0 =? 0) || (op0 =? 1)
+  then dc_pcr n
+  else ignore.
+Definition decode n :=
+  let op0 := n[25,29] in
+  if (op0 =? 12) || (op0 =? 13)
+  then dc_b n
+  else if (op0 =? 8) || (op0 =? 9)
+       then dc_dpi n
+       else ignore.
