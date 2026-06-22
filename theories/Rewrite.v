@@ -106,7 +106,7 @@ Section InstRewriter.
     end.
 End InstRewriter.
 
-Definition cfi_rw
+Definition rw
            (pol: int -> list int)
            (code: list int)
            (bi bi' bti ai: int)

@@ -4,6 +4,5 @@
 *.vok
 *.vos
 *.cache
-Makefile.coq
-Makefile.coq.conf
-.Makefile.coq.d
+_build
+.direnv
