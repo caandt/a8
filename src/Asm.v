@@ -16,6 +16,10 @@ Module Encode.
     (sf << 31) lor (0xe5 << 23) lor (hw << 21) lor (imm16 << 5) lor (Rd).
   Definition MOVZ sf hw imm16 Rd :=
     (sf << 31) lor (0xa5 << 23) lor (hw << 21) lor (imm16 << 5) lor (Rd).
+  Definition CBZ sf op imm19 Rt :=
+    (sf << 31) lor (0x34 << 24) lor (op << 24) lor (imm19 << 5) lor (Rt).
+  Definition TBZ b5 op b40 imm14 Rt :=
+    (b5 << 31) lor (0x36 << 24) lor (op << 24) lor (b40 << 19) lor (imm14 << 5) lor (Rt).
 End Encode.
 Definition bounded x bound :=
   match -bound ?= x, x ?= bound with
@@ -37,6 +41,16 @@ Definition BL src dst :=
   | Some imm26 => Some (Encode.BL imm26)
   | None => None
   end.
+Definition CBZ sf op src dst Rt :=
+  match bounded (dst - src) (1<<18) with
+  | Some imm19 => Some (Encode.CBZ sf op imm19 Rt)
+  | None => None
+  end.
+Definition TBZ b5 op b40 src dst Rt :=
+  match bounded (dst - src) (1<<13) with
+  | Some imm14 => Some (Encode.TBZ b5 op b40 imm14 Rt)
+  | None => None
+  end.
 Definition ADR imm Rd :=
   Encode.ADR (imm[0,2]) (imm[2,21]) Rd.
 Definition ADRP imm Rd :=
@@ -56,4 +70,3 @@ Definition MOV imm Rd :=
       Encode.MOVZ 1 sf imm Rd
       ::map (fun '(imm, sf) => Encode.MOVK 1 sf imm Rd) t
   end.
-

@@ -10,9 +10,8 @@ Variant ityp :=
   | BR (Rn: int)
   | B (imm: int)
   | BL (imm: int)
-  | b_imm
-  | comp_b
-  | test_b.
+  | CBZ (sf op imm Rt: int)
+  | TBZ (b5 op b40 imm Rt: int).
 
 Definition dc_b_cond (n:int) :=
   let o0 := n[4] in
@@ -46,6 +45,20 @@ Definition dc_b_imm n :=
   if (op =? 0)
   then B imm26
   else BL imm26.
+Definition dc_cb n :=
+  let sf := n[31] in
+  let op := n[24] in
+  let imm := n[5,24] in
+  let Rt := n[0,4] in
+  CBZ sf op imm Rt.
+Definition dc_tb n :=
+  let b5 := n[31] in
+  let op := n[24] in
+  let b40 := n[19,24] in
+  let imm := n[5,19] in
+  let Rt := n[0,4] in
+  TBZ b5 op b40 imm Rt.
+
 Definition dc_b (n:int) :=
   let op0 := n[29,32] in
   (* let op1 := n[12,26] in *)
@@ -59,11 +72,11 @@ Definition dc_b (n:int) :=
       if (n[25] =? 1)
       then dc_b_reg n
       else ignore
-  | b4 O _ O O => b_imm
+  | b4 O _ O O => dc_b_imm n
   | b4 O _ O I =>
       if (n[25] =? 0)
-      then comp_b
-      else test_b
+      then dc_cb n
+      else dc_tb n
   | _ => ignore
   end.
 Definition dc_pcr n :=

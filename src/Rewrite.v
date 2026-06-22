@@ -52,7 +52,20 @@ Section InstRewriter.
   Notation rel := (rel dat).
   Notation i := (isn.(i)).
   Notation i' := (rel i).
-
+  Section Length.
+    Definition len_ADR imm Rd :=
+      let dst := (i<<2) + sext imm 21 in
+      of_nat (length (Asm.MOV dst Rd)).
+    Definition len_ADRP imm Rd :=
+      let dst := (i<<2 land 0xfff) + sext (imm << 12) 33 in
+      of_nat (length (Asm.MOV dst Rd)).
+    Definition len_inst :=
+      match Decode.decode isn.(n) with
+      | ADR imm Rd => len_ADR imm Rd
+      | ADRP imm Rd => len_ADRP imm Rd
+      | _ => 1
+      end.
+  End Length.
   Definition UDF := 0.
   Definition rw_ADR imm Rd :=
     let dst := (i<<2) + sext imm 21 in
@@ -71,6 +84,13 @@ Section InstRewriter.
   Definition rw_Bcond imm cond :=
     let dst := i + sext imm 19 in
     Asm.Bcond i' (rel dst) cond.
+  Definition rw_CBZ sf op imm Rt :=
+    let dst := i + sext imm 19 in
+    Asm.CBZ sf op i' (rel dst) Rt.
+  Definition rw_TBZ b5 op b40 imm Rt :=
+    let dst := i + sext imm 14 in
+    Asm.TBZ b5 op b40 i' (rel dst) Rt.
+
   Definition rw_inst :=
     match Decode.decode isn.(n) with
     | ignore => Some [isn.(n)]
@@ -80,6 +100,8 @@ Section InstRewriter.
     | Bcond imm cond => Some [rw_Bcond imm cond orelse UDF]
     | B imm => Some [rw_B imm orelse UDF]
     | BL imm => Some [rw_BL imm orelse UDF]
+    | CBZ sf op imm Rt => Some [rw_CBZ sf op imm Rt orelse UDF]
+    | TBZ b5 op b40 imm Rt => Some [rw_TBZ b5 op b40 imm Rt orelse UDF]
     | _ => None
     end.
 End InstRewriter.
