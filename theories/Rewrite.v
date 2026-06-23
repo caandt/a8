@@ -124,5 +124,8 @@ Definition rw
       rel := rel;
       (* tc := tc; *)
     |} in
-    unwrap (map (rw_inst d) isns)
+    match unwrap (map (rw_inst d) isns), Some [[1]] with
+    | Some code', Some tbl => Some (code', tbl, rel)
+    | _, _ => None
+    end
   end.

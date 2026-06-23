@@ -32,6 +32,7 @@
     findlib
     ctypes
     ctypes-foreign
+    cmdliner
   ];
 in
   pkgs.mkShell {
