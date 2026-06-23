@@ -10,15 +10,27 @@ let parse =
 
 let get_text =
   foreign "lief_get_text"
-    (elf @-> ptr size_t @-> returning (ptr uint32_t))
+    (elf @-> ptr size_t @-> ptr uint64_t @-> returning (ptr uint32_t))
+
+let get_after =
+  foreign "lief_get_after"
+    (elf @-> returning uint64_t)
+
+let get_entrypoint =
+  foreign "lief_get_entrypoint"
+    (elf @-> returning uint64_t)
+
+let set_nx =
+  foreign "lief_set_nx"
+    (elf @-> returning void)
 
 let set_entrypoint =
   foreign "lief_set_entrypoint"
-    (elf @-> uint64_t @-> returning int)
+    (elf @-> uint64_t @-> returning void)
 
 let add_segment =
   foreign "lief_add_segment"
-    (elf @-> ptr uint32_t @-> size_t @-> uint64_t @-> returning int)
+    (elf @-> ptr uint32_t @-> size_t @-> uint64_t @-> returning void)
 
 let write_and_free =
   foreign "lief_write_and_free"
