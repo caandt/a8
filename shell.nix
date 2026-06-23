@@ -18,15 +18,23 @@
     };
     nativeBuildInputs = [pkgs.coq_8_20];
   };
+  packages = with pkgs; [
+    coq_8_20
+    dune
+    pkgsCross.aarch64-multiplatform.stdenv.cc
+    lief
+  ];
+  coq-libs = [
+    rocq-picinae
+    coq-primitives
+  ];
+  ocaml-libs = with pkgs.ocamlPackages; [
+    findlib
+    ctypes
+    ctypes-foreign
+  ];
 in
   pkgs.mkShell {
-    packages = with pkgs; [
-      dune
-      coq_8_20
-      coq-primitives
-      rocq-picinae
-      ocamlPackages.findlib
-      pkgsCross.aarch64-multiplatform.stdenv.cc
-    ];
+    packages = packages ++ ocaml-libs ++ coq-libs;
     shellHook = "export COQPATH=${rocq-picinae}/lib/ocaml/5.4.1/site-lib/coq/user-contrib:$COQPATH";
   }

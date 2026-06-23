@@ -1,9 +1,9 @@
 (coq.extraction
  (prelude extraction)
- (theories a8)
- (extracted_modules Rewrite))
+ (theories Rewriter)
+ (extracted_modules Rewriter))
 
 (library
  (name CFI)
  (libraries coq-primitive.uint63)
- (modules Rewrite))
+ (modules Rewriter))

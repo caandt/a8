@@ -1,4 +1,4 @@
 (coq.theory
- (name a8)
+ (name Rewriter)
  (theories Picinae)
  (package a8))
