@@ -1,3 +1,4 @@
 (coq.theory
  (name a8)
+ (theories Picinae)
  (package a8))
