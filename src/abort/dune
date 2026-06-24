@@ -1,0 +1,25 @@
+(rule
+ (targets abort.bin)
+ (action
+  (progn
+   (run aarch64-unknown-linux-gnu-cc
+        -c -ffreestanding -fno-stack-protector -nostdlib
+        %{dep:abort.c} -o a.o)
+   (run aarch64-unknown-linux-gnu-ld
+        -T %{dep:link.ld} -nostdlib a.o -o a.elf)
+   (run aarch64-unknown-linux-gnu-objcopy
+        -O binary -j .text -j .got -j .got.plt a.elf %{targets}))))
+
+(rule
+ (target abort.ml)
+ (deps abort.bin)
+ (action
+  (with-stdout-to %{target}
+   (run ocaml -e
+    "let data = In_channel.with_open_bin \"%{deps}\" In_channel.input_all in
+     Printf.printf \"let data = \\\"%s\\\"\\n\" (String.escaped data)"
+   ))))
+
+(library
+ (name abort)
+ (modules abort))

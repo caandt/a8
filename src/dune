@@ -1,8 +1,4 @@
 (executable
  (name main)
- (libraries CFI ctypes ctypes.foreign cmdliner)
- (foreign_stubs
-  (language cxx)
-  (names lief)
-  (flags :standard -std=c++17))
+ (libraries CFI packager cmdliner)
  (link_flags :standard -cclib -lLIEF -cclib -lstdc++ -cclib -rdynamic))

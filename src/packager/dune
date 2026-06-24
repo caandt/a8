@@ -1,0 +1,7 @@
+(library
+ (name packager)
+ (libraries CFI ctypes ctypes.foreign)
+ (foreign_stubs
+  (language cxx)
+  (names lief)
+  (flags :standard -std=c++17)))
