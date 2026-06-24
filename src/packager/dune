@@ -1,7 +1,8 @@
 (library
  (name packager)
- (libraries CFI ctypes ctypes.foreign)
+ (libraries coq-primitive.uint63 ctypes ctypes.foreign)
  (foreign_stubs
   (language cxx)
   (names lief)
-  (flags :standard -std=c++17)))
+  (flags :standard -std=c++17))
+ (c_library_flags -lLIEF -lstdc++))

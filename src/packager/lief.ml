@@ -35,3 +35,6 @@ let add_segment =
 let write_and_free =
   foreign "lief_write_and_free"
     (elf @-> string @-> returning void)
+
+(* force the linker to keep lief.cpp in the archive *)
+external _force_link : unit -> unit = "_force_link"

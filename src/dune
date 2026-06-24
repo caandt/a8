@@ -1,4 +1,3 @@
 (executable
  (name main)
- (libraries CFI packager cmdliner)
- (link_flags :standard -cclib -lLIEF -cclib -lstdc++ -cclib -rdynamic))
+ (libraries CFI packager cmdliner))

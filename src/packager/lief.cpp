@@ -74,4 +74,7 @@ void lief_write_and_free(ELFHandle* handle, const char* out_path) {
     delete bin;
 }
 
+// force the linker to keep this file in the archive
+void _force_link() {}
+
 }
