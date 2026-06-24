@@ -1,5 +1,5 @@
 From Rewriter Require Import Rewrite.
-Require Import Extraction ExtrOCamlInt63 ExtrOcamlBasic Uint63 Sint63.
+Require Import Extraction ExtrOCamlInt63 ExtrOcamlBasic.
 
 Extraction Language OCaml.
 Set Extraction Output Directory ".".

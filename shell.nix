@@ -19,6 +19,7 @@
     nativeBuildInputs = [pkgs.coq_8_20];
   };
   packages = with pkgs; [
+    ocaml
     coq_8_20
     dune
     pkgsCross.aarch64-multiplatform.stdenv.cc
@@ -33,6 +34,8 @@
     ctypes
     ctypes-foreign
     cmdliner
+    ppx_deriving
+    ppx_import
   ];
 in
   pkgs.mkShell {

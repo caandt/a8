@@ -3,23 +3,6 @@ Require Hash Decode Asm.
 Import Decode(ityp(..)).
 Import ListNotations.
 
-Definition chunklen (n: int) :=
-  match Decode.decode n with
-  | ignore
-  | invalid => 1
-  | _ => 0
-  end.
-Definition compute_rel
-           (code: list int)
-           (bi bi': int)
-           :=
-  fun x:int => x.
-
-Definition compute_tables
-           (code: list int)
-           :=
-  Some ([[1]], fun x: list int => x).
-
 Structure data := {
   (* the base index of the original text segment *)
   bi: int;
@@ -46,6 +29,8 @@ Structure i_data := {
 Definition sext n w := asr (n << (63 - w)) (63 - w).
 
 (* Notation "a ? b" := (match b with None => None | Some x => Some (a x) end) (at level 10, format "a  ? b"). *)
+Section Debug.
+  Variable debug_hook : i_data -> ityp -> ityp.
 Section InstRewriter.
   Variable dat : data.
   Variable isn : i_data.
@@ -92,7 +77,8 @@ Section InstRewriter.
     Asm.TBZ b5 op b40 i' (rel dst) Rt.
 
   Definition rw_inst :=
-    match Decode.decode isn.(n) with
+    let t := debug_hook isn (Decode.decode isn.(n)) in
+    match t with
     | ignore => Some [isn.(n)]
     | invalid => Some [goto_abort]
     | ADR imm Rd => Some (rw_ADR imm Rd)
@@ -106,6 +92,22 @@ Section InstRewriter.
     end.
 End InstRewriter.
 
+Definition chunklen (n: int) :=
+  match Decode.decode n with
+  | ignore
+  | invalid => 1
+  | _ => 0
+  end.
+Definition compute_rel
+           (code: list int)
+           (bi bi': int)
+           :=
+  fun x:int => x.
+
+Definition compute_tables
+           (code: list int)
+           :=
+  Some ([[1]], fun x: list int => x).
 Definition rw
            (pol: int -> list int)
            (code: list int)
@@ -129,3 +131,4 @@ Definition rw
     | _, _ => None
     end
   end.
+End Debug.

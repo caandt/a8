@@ -1,5 +1,15 @@
 open Cmdliner
 
+type ityp_pp =
+[%import: CFI.Rewriter.ityp
+          [@with Uint63.t := Uint63.t [@printer (fun x y -> Format.pp_print_string x (Uint63.to_string y))]]]
+[@@deriving show]
+
+let debug_hook (i: CFI.Rewriter.i_data) x =
+  match x with
+  | Ignore -> x
+  | _ -> Printf.printf "%Lx: %Lx: %s\n" (Int64.mul (Uint63.to_int64 i.i) 4L) (Uint63.to_int64 i.n) (show_ityp_pp x); x
+
 let read_policy policy_file =
   match policy_file with
   | None -> fun _ -> []
@@ -25,7 +35,7 @@ let main input output pol bi' bti ai =
   let bti = default_u63 bti default_bti in
   let ai = default_u63 ai default_ai in
 
-  let* (code', tbl), rel = CFI.Rewriter.rw pol code bi bi' bti ai, "Error rewriting code" in
+  let* (code', tbl), rel = CFI.Rewriter.rw debug_hook pol code bi bi' bti ai, "Error rewriting code" in
   Packager.set_nx elf;
   Packager.set_entrypoint elf (Packager.get_entrypoint elf |> rel);
   Packager.add_segment elf (List.concat code') bi';
