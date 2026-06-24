@@ -95,7 +95,7 @@ Definition dc_dpi n :=
   else ignore.
 Definition decode n :=
   let op0 := n[25,29] in
-  if (op0 =? 12) || (op0 =? 13)
+  if (op0 =? 10) || (op0 =? 11)
   then dc_b n
   else if (op0 =? 8) || (op0 =? 9)
        then dc_dpi n

@@ -46,9 +46,11 @@ let main input output pol bi' bti ai =
   Ok ()
 
 let run input output pol bi' bti ai abort =
-  let output = Option.value output ~default:input ^ "_rw" in
+  let output = Option.value output ~default:(input ^ "_rw") in
   let pol = read_policy pol in
-  main input output pol bi' bti ai
+  let res = main input output pol bi' bti ai in
+  Stdlib.flush Stdlib.stdout;
+  res
 
 let input =
   let doc = "The input ELF to rewrite." in
