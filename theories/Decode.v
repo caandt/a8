@@ -8,6 +8,8 @@ Variant ityp :=
   | ADRP (imm Rd: int)
   | Bcond (imm cond: int)
   | BR (Rn: int)
+  | BLR (Rn: int)
+  | RET (Rn: int)
   | B (imm: int)
   | BL (imm: int)
   | CBZ (sf op imm Rt: int)
@@ -34,6 +36,20 @@ Definition dc_b_reg (n:int) :=
            then
              if (op4 =? 0)
              then BR Rn
+             else ignore
+           else invalid
+       | 0b0001 =>
+           if (op3 =? 0)
+           then
+             if (op4 =? 0)
+             then BLR Rn
+             else ignore
+           else invalid
+       | 0b0010 =>
+           if (op3 =? 0)
+           then
+             if (op4 =? 0)
+             then RET Rn
              else ignore
            else invalid
        | _ => invalid
