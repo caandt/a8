@@ -35,7 +35,7 @@ let main input output pol bi' bti ai =
   Printf.printf "Wrote %s\n" output;
   Ok ()
 
-let run input output pol bi' bti ai =
+let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:input ^ "_rw" in
   let pol = read_policy pol in
   main input output pol bi' bti ai
@@ -46,7 +46,7 @@ let input =
 
 let output =
   let doc = "The output path of the rewritten ELF." in
-  let absent = "INPUT_rw" in
+  let absent = "save to INPUT_rw" in
   Arg.(value & pos 1 (some string) None & info [] ~docv:"OUTPUT" ~doc ~absent)
 
 let policy =
@@ -57,20 +57,25 @@ let policy =
 let bi' =
   let doc = "The index where the new code segment should be placed." in
   let absent = "place after the last original segment" in
-  Arg.(value & opt (some int) None & info ["c"; "code"] ~docv:"INDEX" ~doc ~absent)
+  Arg.(value & opt (some int) None & info ["c"; "code"] ~docv:"CODE_IDX" ~doc ~absent)
 
 let bti =
   let doc = "The index where the policy table segment should be placed." in
   let absent = Printf.sprintf "use 0x%x" default_bti in
-  Arg.(value & opt (some int) None & info ["t"; "table"] ~docv:"INDEX" ~doc ~absent)
+  Arg.(value & opt (some int) None & info ["t"; "table"] ~docv:"TBL_IDX" ~doc ~absent)
 
 let ai =
   let doc = "The index where the abort segment should be placed." in
   let absent = Printf.sprintf "use 0x%x" default_ai in
-  Arg.(value & opt (some int) None & info ["a"; "abort"] ~docv:"INDEX" ~doc ~absent)
+  Arg.(value & opt (some int) None & info ["a"; "abort-index"] ~docv:"ABT_IDX" ~doc ~absent)
+
+let abort =
+  let doc = "The file containing the content of the abort segment." in
+  let absent = "abort prints an error and exits" in
+  Arg.(value & opt (some string) None & info ["A"; "abort"] ~docv:"ABORT" ~doc ~absent)
 
 let cmd =
-  let term = Term.(const run $ input $ output $ policy $ bi' $ bti $ ai) in
+  let term = Term.(const run $ input $ output $ policy $ bi' $ bti $ ai $ abort) in
   let info = Cmd.info "a64-cfi" ~doc:"CFI rewriter for AArch64" in
   Cmd.v info term
 
