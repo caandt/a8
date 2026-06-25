@@ -12,15 +12,20 @@ Structure data := {
   bti: int;
   (* the index of the abort handler *)
   ai: int;
+
   (* the original text segment *)
   code: list int;
-  (* a mapping from indices to sets of destination indices,
-     describing the policy to be enforced *)
-  pol: int -> list int;
+
+  (* the list of all sets of permitted destination indices *)
+  dsets: list (list int);
+  (* the list of table indices and hash parameters for each dset *)
+  tc: list (int * Hash.hash);
+  (* a mapping from instruction indices to an index of the dsets list,
+     describing what destinations are permitted jump targets *)
+  pol: int -> int;
+
   (* a mapping from original indices to new indices *)
   rel: int -> int;
-  (* a mapping from destination sets to table indices *)
-  tc: list int -> option (int * Hash.hash);
 }.
 Structure i_data := {
   i: int;
@@ -34,10 +39,14 @@ Section Debug.
 Section InstRewriter.
   Variable dat : data.
   Variable isn : i_data.
-  Notation rel := (rel dat).
+  Notation rel := dat.(rel).
   Notation i := (isn.(i)).
   Notation i' := (rel i).
-  Notation h := (tc dat (pol dat i)).
+  Notation lbl := (dat.(pol) i).
+  Notation dset := (nth (to_nat lbl) dat.(dsets) nil).
+  Notation tbl := (nth (to_nat lbl) dat.(tc) (0,Hash.H_UBFX 0 0)).
+  Notation ti := (fst tbl).
+  Notation h := (snd tbl).
   Section Length.
     Definition len_ADR imm Rd :=
       let dst := (i<<2) + sext imm 21 in
@@ -77,12 +86,11 @@ Section InstRewriter.
     let dst := i + sext imm 14 in
     Asm.TBZ b5 op b40 i' (rel dst) Rt.
 
-  (* Definition tbl_lookup Rdst Rtmp := *)
-  (*   obind h (\(ti, h), *)
-  (*     Hash.hash_code h Rdst ++ *)
-  (*     Asm.MOV ti Rtmp ++ *)
-  (*     Asm. *)
-  (*   ). *)
+  Notation "^S x" := (Some x) (at level 1000000).
+  Definition tbl_lookup Rdst Rtmp :=
+    Hash.hash_code h Rdst ++
+    Asm.MOV ti Rtmp ++
+    nil.
   Definition rw_inst :=
     let t := debug_hook isn (Decode.decode isn.(n)) in
     match t with
@@ -116,9 +124,10 @@ Definition compute_rel
 Definition compute_tables
            (code: list int)
            :=
-  Some ([[1]], \x: list int,None:option (int*Hash.hash)).
+  Some ([[1]], nil:list (int*Hash.hash)).
 Definition rw
-           (pol: int -> list int)
+           (pol: int -> int)
+           (dsets: list (list int))
            (code: list int)
            (bi bi' bti ai: int)
            :=
@@ -132,6 +141,7 @@ Definition rw
       ai := ai;
       code := code;
       pol := pol;
+      dsets := dsets;
       rel := rel;
       tc := tc;
     |} in

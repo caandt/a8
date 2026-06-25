@@ -16,8 +16,8 @@ let debug_hook (i: CFI.Rewriter.i_data) x =
 
 let read_policy policy_file =
   match policy_file with
-  | None -> fun _ -> []
-  | Some p -> fun _ -> []
+  | None -> (fun _ -> Uint63.zero), []
+  | Some p -> (fun _ -> Uint63.zero), []
 
 let (let*) (opt, e) f =
   match opt with
@@ -30,7 +30,7 @@ let default_u63 int default =
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
 
-let main input output pol bi' bti ai =
+let main input output pol dsets bi' bti ai =
   let* elf = Packager.load input, "Error reading input" in
   let* code, va = Packager.get_text elf, "Error getting text content" in
 
@@ -39,7 +39,7 @@ let main input output pol bi' bti ai =
   let bti = default_u63 bti default_bti in
   let ai = default_u63 ai default_ai in
 
-  let* (code', tbl), rel = CFI.Rewriter.rw debug_hook pol code bi bi' bti ai, "Error rewriting code" in
+  let* (code', tbl), rel = CFI.Rewriter.rw debug_hook pol dsets code bi bi' bti ai, "Error rewriting code" in
   Packager.set_nx elf;
   Packager.set_entrypoint elf (Packager.get_entrypoint elf |> rel);
   Packager.add_segment elf (List.concat code') bi';
@@ -51,8 +51,8 @@ let main input output pol bi' bti ai =
 
 let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:(input ^ "_rw") in
-  let pol = read_policy pol in
-  let res = main input output pol bi' bti ai in
+  let pol, dsets = read_policy pol in
+  let res = main input output pol dsets bi' bti ai in
   Stdlib.flush Stdlib.stdout;
   res
 
