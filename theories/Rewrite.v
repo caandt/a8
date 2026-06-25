@@ -20,7 +20,7 @@ Structure data := {
   (* a mapping from original indices to new indices *)
   rel: int -> int;
   (* a mapping from destination sets to table indices *)
-  (* tc: list int -> option (int * Hash); *)
+  tc: list int -> option (int * Hash.hash);
 }.
 Structure i_data := {
   i: int;
@@ -37,6 +37,7 @@ Section InstRewriter.
   Notation rel := (rel dat).
   Notation i := (isn.(i)).
   Notation i' := (rel i).
+  Notation h := (tc dat (pol dat i)).
   Section Length.
     Definition len_ADR imm Rd :=
       let dst := (i<<2) + sext imm 21 in
@@ -76,6 +77,12 @@ Section InstRewriter.
     let dst := i + sext imm 14 in
     Asm.TBZ b5 op b40 i' (rel dst) Rt.
 
+  Definition tbl_lookup Rdst Rtmp :=
+    obind h (\(ti, h),
+      Hash.hash_code h Rdst ++
+      Asm.MOV ti Rtmp ++
+      Asm.
+    ).
   Definition rw_inst :=
     let t := debug_hook isn (Decode.decode isn.(n)) in
     match t with
@@ -88,7 +95,9 @@ Section InstRewriter.
     | BL imm => Some [rw_BL imm orelse UDF]
     | CBZ sf op imm Rt => Some [rw_CBZ sf op imm Rt orelse UDF]
     | TBZ b5 op b40 imm Rt => Some [rw_TBZ b5 op b40 imm Rt orelse UDF]
-    | _ => None
+    | BR Rn => Some []
+    | BLR Rn => Some []
+    | RET Rn => Some []
     end.
 End InstRewriter.
 

@@ -20,6 +20,8 @@ Module Encode.
     (sf << 31) lor (0x34 << 24) lor (op << 24) lor (imm19 << 5) lor (Rt).
   Definition TBZ b5 op b40 imm14 Rt :=
     (b5 << 31) lor (0x36 << 24) lor (op << 24) lor (b40 << 19) lor (imm14 << 5) lor (Rt).
+  Definition UBFX sf N immr imms Rn Rd :=
+    (sf << 31) lor (0xa6 << 23) lor (N << 22) lor (immr << 16) lor (imms << 10) lor (Rn << 5) lor (Rd).
 End Encode.
 Definition bounded x bound :=
   match -bound ?= x, x ?= bound with
@@ -55,7 +57,7 @@ Definition ADR imm Rd :=
   Encode.ADR (imm[0,2]) (imm[2,21]) Rd.
 Definition ADRP imm Rd :=
   Encode.ADRP (imm[0,2]) (imm[2,21]) Rd.
-Function b16s imm hw {measure (fun x => to_nat (4 - x)) hw} :=
+Function b16s imm hw {measure (\x, to_nat (4 - x)) hw} :=
   if (hw <? 4)
   then let rest := b16s (imm >> 16) (succ hw) in
        if (imm land 0xffff =? 0)
@@ -68,5 +70,7 @@ Definition MOV imm Rd :=
   | nil => Encode.MOVZ 1 0 0 Rd::nil
   | (imm, sf)::t =>
       Encode.MOVZ 1 sf imm Rd
-      ::map (fun '(imm, sf) => Encode.MOVK 1 sf imm Rd) t
+      ::map (\(imm, sf), Encode.MOVK 1 sf imm Rd) t
   end.
+Definition UBFX is64 Rd Rn lsb width :=
+  Encode.UBFX (b2i is64) (b2i is64) lsb (lsb+width-1) Rn Rd.

@@ -50,3 +50,10 @@ Fixpoint _unwrap {A} acc (lst: list (option A)) :=
   | _ => None
   end.
 Definition unwrap {A} lst := @_unwrap A nil lst.
+Definition obind {A B} o (f: A -> B) :=
+  match o with
+  | None => None
+  | Some x => Some (f x)
+  end.
+Notation "\ x , y" := (fun x => y) (at level 100, x pattern, right associativity, format "\ x ,  y").
+Notation "\ x : t , y" := (fun x : t => y) (at level 100, x pattern, right associativity, format "\ x : t ,  y").

@@ -8,7 +8,11 @@ type ityp_pp =
 let debug_hook (i: CFI.Rewriter.i_data) x =
   match x with
   | Ignore -> x
-  | _ -> Printf.printf "%Lx: %Lx: %s\n" (Int64.mul (Uint63.to_int64 i.i) 4L) (Uint63.to_int64 i.n) (show_ityp_pp x); x
+  | _ ->
+      let n = Uint63.to_int64 i.n in
+      let i = Uint63.to_int64 i.i in
+      Printf.printf "@%Lx: [%Lx] %s\n" (Int64.mul i 4L) n (show_ityp_pp x); x
+(* let debug_hook _ x = x *)
 
 let read_policy policy_file =
   match policy_file with
