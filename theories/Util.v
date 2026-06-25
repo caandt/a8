@@ -43,17 +43,16 @@ Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
   | a::t => _mapi (f i a::acc) (i+1) f t
   end.
 Definition mapi {A B} := @_mapi A B nil 0.
-Fixpoint _unwrap {A} acc (lst: list (option A)) :=
-  match lst with
-  | nil => Some (rev acc)
-  | Some a::t => _unwrap (a::acc) t
-  | _ => None
-  end.
-Definition unwrap {A} lst := @_unwrap A nil lst.
-Definition obind {A B} o (f: A -> B) :=
-  match o with
-  | None => None
-  | Some x => Some (f x)
-  end.
+
 Notation "\ x , y" := (fun x => y) (at level 100, x pattern, right associativity, format "\ x ,  y").
 Notation "\ x : t , y" := (fun x : t => y) (at level 100, x pattern, right associativity, format "\ x : t ,  y").
+
+Definition maybe_bind {A B} o (f: A -> option B) :=
+  match o with
+  | None => None
+  | Some x => f x
+  end.
+Infix ">>=" := maybe_bind (at level 100).
+Definition maybe_op {A B C} (op: A -> B -> C) x y := x >>= \x, y >>= \y, Some (op x y).
+Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
+Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).

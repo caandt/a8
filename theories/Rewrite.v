@@ -77,12 +77,12 @@ Section InstRewriter.
     let dst := i + sext imm 14 in
     Asm.TBZ b5 op b40 i' (rel dst) Rt.
 
-  Definition tbl_lookup Rdst Rtmp :=
-    obind h (\(ti, h),
-      Hash.hash_code h Rdst ++
-      Asm.MOV ti Rtmp ++
-      Asm.
-    ).
+  (* Definition tbl_lookup Rdst Rtmp := *)
+  (*   obind h (\(ti, h), *)
+  (*     Hash.hash_code h Rdst ++ *)
+  (*     Asm.MOV ti Rtmp ++ *)
+  (*     Asm. *)
+  (*   ). *)
   Definition rw_inst :=
     let t := debug_hook isn (Decode.decode isn.(n)) in
     match t with
@@ -116,7 +116,7 @@ Definition compute_rel
 Definition compute_tables
            (code: list int)
            :=
-  Some ([[1]], fun x: list int => x).
+  Some ([[1]], \x: list int,None:option (int*Hash.hash)).
 Definition rw
            (pol: int -> list int)
            (code: list int)
@@ -133,9 +133,9 @@ Definition rw
       code := code;
       pol := pol;
       rel := rel;
-      (* tc := tc; *)
+      tc := tc;
     |} in
-    match unwrap (map (rw_inst d) isns), Some [[1]] with
+    match maybe_map (rw_inst d) isns, Some [[1]] with
     | Some code', Some tbl => Some (code', tbl, rel)
     | _, _ => None
     end

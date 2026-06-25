@@ -36,6 +36,8 @@
     cmdliner
     ppx_deriving
     ppx_import
+    parmap
+    utop
   ];
 in
   pkgs.mkShell {
