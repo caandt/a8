@@ -2,16 +2,14 @@ open Ctypes
 open Foreign
 open Unsigned
 
-let u63_of_u32 x = x |> UInt32.to_int64 |> Uint63.of_int64
-let u32_of_u63 x = x |> Uint63.to_int64 |> UInt32.of_int64
-let u64_of_u63 x = x |> Uint63.to_int64 |> UInt64.of_int64
-let u63_of_u64 x = x |> UInt64.to_int64 |> Uint63.of_int64
+let ( % ) = Fun.compose
 
-let to_u63_list (arr: uint32 CArray.t) =
-  arr |> CArray.to_list |> List.map u63_of_u32
-
-let of_u63_list (lst: Uint63.t list) =
-  lst |> List.map u32_of_u63 |> CArray.of_list uint32_t
+let u63_of_u32 = Uint63.of_int64 % UInt32.to_int64
+let u32_of_u63 = UInt32.of_int64 % Uint63.to_int64
+let u64_of_u63 = UInt64.of_int64 % Uint63.to_int64
+let u63_of_u64 = Uint63.of_int64 % UInt64.to_int64
+let to_u63_list = List.map u63_of_u32 % CArray.to_list
+let of_u63_list = CArray.of_list uint32_t % List.map u32_of_u63
 
 let load filepath =
   let handle = Lief.parse filepath in
@@ -28,8 +26,8 @@ let get_text elf =
     let arr = CArray.from_ptr data_ptr elements in
     Some (to_u63_list arr, u63_of_u64 (!@ va_ptr))
 
-let get_after elf = Lief.get_after elf |> u63_of_u64
-let get_entrypoint elf = Lief.get_entrypoint elf |> u63_of_u64
+let get_after = u63_of_u64 % Lief.get_after
+let get_entrypoint = u63_of_u64 % Lief.get_entrypoint
 let set_nx = Lief.set_nx
 
 let set_entrypoint elf (entry: Uint63.t) =

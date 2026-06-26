@@ -1,19 +1,24 @@
 open Cmdliner
 
-type ityp_pp =
-[%import: CFI.Rewriter.ityp
-          [@with Uint63.t := Uint63.t [@printer (fun x y -> Format.pp_print_string x (Uint63.to_string y))]]]
-[@@deriving show]
+let lsr2 x = Uint63.l_sr x (Uint63.of_int 2)
+let lsl2 x = Uint63.l_sl x (Uint63.of_int 2)
+let u = Uint63.to_int64
+let ( % ) = Fun.compose
+let hex = Printf.sprintf "%Lx" % u
+
+module Uint63 = struct
+  include Uint63
+  let pp fmt x = Format.pp_print_string fmt (hex x)
+end
+type ityp_pp = [%import: CFI.Rewriter.ityp] [@@deriving show]
 
 let debug_hook (id: CFI.Rewriter.i_data) chunk =
   match id.t0 with
   | Ignore -> chunk
   | _ ->
-      let n = Uint63.to_int64 id.n in
-      let i = Uint63.to_int64 id.i in
-      Printf.printf "@%Lx: [%Lx] %s => [" (Int64.mul i 4L) n (show_ityp_pp id.t0);
-      let _ = Option.map (fun x -> List.iter (Printf.printf "%Lx;") (List.map Uint63.to_int64 x)) chunk in
-      Printf.printf "]\n";
+      let c = Option.fold ~some:(String.concat ";" % List.map hex) ~none:"none" chunk in
+      Printf.printf "[%Lx]@%Lx: %s => [%s]\n" (u id.n) (lsl2 id.i|>u) (show_ityp_pp id.t0) c;
+      Stdlib.flush Stdlib.stdout;
       chunk
 (* let debug_hook _ x = x *)
 
@@ -30,9 +35,6 @@ let default_u63 int default =
 
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
-
-let lsr2 x = Uint63.l_sr x (Uint63.of_int 2)
-let lsl2 x = Uint63.l_sl x (Uint63.of_int 2)
 
 let main input output pol bi' bti ai =
   let* elf = Packager.load input, "Error reading input" in
