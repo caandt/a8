@@ -1,6 +1,6 @@
 Require Import Util.
 Require Hash Decode Asm.
-Import Decode(ityp(..)).
+Import Decode(ityp(..),decode).
 Import ListNotations.
 
 Structure data := {
@@ -18,8 +18,8 @@ Structure data := {
 
   (* the list of all sets of permitted destination indices *)
   dsets: list (list int);
-  (* the list of table indices and hash parameters for each dset *)
-  tc: list (int * Hash.hash);
+  (* for each dset, (hash, table content, table index) *)
+  tc: list (Hash.hash * list int * int);
   (* a mapping from instruction indices to an index of the dsets list,
      describing what destinations are permitted jump targets *)
   pol: int -> int;
@@ -30,13 +30,12 @@ Structure data := {
 Structure i_data := {
   i: int;
   n: int;
+  t: ityp;
 }.
 Definition sext n w := asr (n << (63 - w)) (63 - w).
 
-(* Notation "a ? b" := (match b with None => None | Some x => Some (a x) end) (at level 10, format "a  ? b"). *)
-Section Debug.
-  Variable debug_hook : i_data -> ityp -> ityp.
 Section InstRewriter.
+  Variable hook : i_data -> option (list int) -> option (list int).
   Variable dat : data.
   Variable isn : i_data.
   Notation rel := dat.(rel).
@@ -44,9 +43,9 @@ Section InstRewriter.
   Notation i' := (rel i).
   Notation lbl := (dat.(pol) i).
   Notation dset := (nth (to_nat lbl) dat.(dsets) nil).
-  Notation tbl := (nth (to_nat lbl) dat.(tc) (0,Hash.H_UBFX 0 0)).
-  Notation ti := (fst tbl).
-  Notation h := (snd tbl).
+  Notation tbl := (nth (to_nat lbl) dat.(tc) (Hash.H_UBFX 0 0, nil, 0)).
+  Notation ti := (snd tbl).
+  Notation h := (fst (fst tbl)).
   Section Length.
     Definition len_ADR imm Rd :=
       let dst := (i<<2) + sext imm 21 in
@@ -55,7 +54,7 @@ Section InstRewriter.
       let dst := (i<<2 land 0xfff) + sext (imm << 12) 33 in
       of_nat (length (Asm.MOV dst Rd)).
     Definition len_inst :=
-      match Decode.decode isn.(n) with
+      match isn.(t) with
       | ADR imm Rd => len_ADR imm Rd
       | ADRP imm Rd => len_ADRP imm Rd
       | _ => 1
@@ -86,14 +85,12 @@ Section InstRewriter.
     let dst := i + sext imm 14 in
     Asm.TBZ b5 op b40 i' (rel dst) Rt.
 
-  Notation "^S x" := (Some x) (at level 1000000).
   Definition tbl_lookup Rdst Rtmp :=
     Hash.hash_code h Rdst ++
     Asm.MOV ti Rtmp ++
     nil.
   Definition rw_inst :=
-    let t := debug_hook isn (Decode.decode isn.(n)) in
-    match t with
+    hook isn match isn.(t) with
     | ignore => Some [isn.(n)]
     | invalid => Some [goto_abort]
     | ADR imm Rd => Some (rw_ADR imm Rd)
@@ -120,34 +117,25 @@ Definition compute_rel
            (bi bi': int)
            :=
   fun x:int => x.
-
-Definition compute_tables
-           (code: list int)
-           :=
-  Some ([[1]], nil:list (int*Hash.hash)).
-Definition rw
-           (pol: int -> int)
-           (dsets: list (list int))
-           (code: list int)
-           (bi bi' bti ai: int)
-           :=
-  let isns := mapi (fun i n => {| i := bi + i; n := n |}) code in
-  let rel := compute_rel code bi bi' in
-  match compute_tables code with | None => None | Some (tables, tc) =>
-    let d := {|
-      bi := bi;
-      bi' := bi';
-      bti := bti;
-      ai := ai;
-      code := code;
-      pol := pol;
-      dsets := dsets;
-      rel := rel;
-      tc := tc;
-    |} in
-    match maybe_map (rw_inst d) isns, Some [[1]] with
-    | Some code', Some tbl => Some (code', tbl, rel)
-    | _, _ => None
-    end
+Fixpoint csum acc base lst :=
+  match lst with
+  | nil => rev acc
+  | a::t => csum (base+a::acc) (base+a) t
   end.
-End Debug.
+Definition compute_tables rel ai bti dsets :=
+  maybe_map (\D,
+    let D' := map rel D in
+    Hash.find_hash D D' >>= \h,
+    Some (h, Hash.compute_table_m h ai D D')
+  ) dsets >>= \l,
+    let lens := map (\x, len (snd x)) l in
+    Some (combine l (csum [] bti lens)).
+Definition rw hook pol dsets code bi bi' bti ai :=
+  let isns := mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code in
+  let rel := compute_rel code bi bi' in
+  compute_tables rel ai bti dsets >>= \tc,
+  let d := {| bi := bi; bi' := bi'; bti := bti; ai := ai; code := code;
+    pol := pol; dsets := dsets; rel := rel; tc := tc; |} in
+  maybe_map (rw_inst hook d) isns >>= \code',
+  let tbls := map (\(_,t,_),t) tc in
+  Some (code', tbls, rel).

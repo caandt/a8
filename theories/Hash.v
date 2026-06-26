@@ -1,6 +1,6 @@
 Require Import Util.
 Require Asm.
-Require Import ZArith Orders Lia ZifyUint63 MSets PArray.
+Require Import ZArith Orders Lia ZifyUint63 MSetRBT PArray.
 Import ListNotations.
 
 Module IntOT <: UsualOrderedType.
@@ -12,22 +12,22 @@ Module IntOT <: UsualOrderedType.
   Proof.
     unfold lt. split. intros x LT. lia.
     intros x y z LT LT2. lia.
-  Qed.
+  Defined.
   Definition lt_compat : Proper (Logic.eq ==> Logic.eq ==> iff) lt.
   Proof.
     intros a b EQ x y EQ2. unfold lt. subst. lia.
-  Qed.
+  Defined.
   Definition compare := Uint63.compare.
   Definition compare_spec : forall x y : t, CompareSpec (x = y) (lt x y) (lt y x) (compare x y).
   Proof.
     intros x y. unfold compare, lt.
     rewrite Uint63.compare_spec.
     destruct (Z.compare_spec (to_Z x) (to_Z y)); constructor; auto; lia.
-  Qed.
+  Defined.
   Definition eq_dec : forall x y : t, {x = y} + {x <> y}.
   Proof.
     intros x y. destruct (x =? y) eqn:E. left. lia. right. lia.
-  Qed.
+  Defined.
 End IntOT.
 Module MSet := Make IntOT.
 Section HashTable.

@@ -30,7 +30,7 @@ let set_entrypoint =
 
 let add_segment =
   foreign "lief_add_segment"
-    (elf @-> ptr uint32_t @-> size_t @-> uint64_t @-> returning void)
+    (elf @-> ptr uint32_t @-> size_t @-> uint64_t @-> returning bool)
 
 let write_and_free =
   foreign "lief_write_and_free"

@@ -5,19 +5,17 @@ type ityp_pp =
           [@with Uint63.t := Uint63.t [@printer (fun x y -> Format.pp_print_string x (Uint63.to_string y))]]]
 [@@deriving show]
 
-let debug_hook (i: CFI.Rewriter.i_data) x =
-  match x with
-  | Ignore -> x
+let debug_hook (id: CFI.Rewriter.i_data) chunk =
+  match id.t0 with
+  | Ignore -> chunk
   | _ ->
-      let n = Uint63.to_int64 i.n in
-      let i = Uint63.to_int64 i.i in
-      Printf.printf "@%Lx: [%Lx] %s\n" (Int64.mul i 4L) n (show_ityp_pp x); x
+      let n = Uint63.to_int64 id.n in
+      let i = Uint63.to_int64 id.i in
+      Printf.printf "@%Lx: [%Lx] %s\n" (Int64.mul i 4L) n (show_ityp_pp id.t0); chunk
 (* let debug_hook _ x = x *)
 
 let read_policy policy_file =
-  match policy_file with
-  | None -> (fun _ -> Uint63.zero), []
-  | Some p -> (fun _ -> Uint63.zero), []
+  (fun _ -> Uint63.zero), []
 
 let (let*) (opt, e) f =
   match opt with
@@ -30,7 +28,7 @@ let default_u63 int default =
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
 
-let main input output pol dsets bi' bti ai =
+let main input output pol bi' bti ai =
   let* elf = Packager.load input, "Error reading input" in
   let* code, va = Packager.get_text elf, "Error getting text content" in
 
@@ -39,20 +37,24 @@ let main input output pol dsets bi' bti ai =
   let bti = default_u63 bti default_bti in
   let ai = default_u63 ai default_ai in
 
-  let* (code', tbl), rel = CFI.Rewriter.rw debug_hook pol dsets code bi bi' bti ai, "Error rewriting code" in
+  let pol, dsets =
+    match pol with
+    | None -> (fun _ -> Uint63.zero), [List.init (List.length code) (fun x -> Uint63.add bi (Uint63.of_int x))]
+    | Some p -> read_policy pol in
+
+  let* (code', tbls), rel = CFI.Rewriter.rw debug_hook pol dsets code bi bi' bti ai, "Error rewriting code" in
   Packager.set_nx elf;
   Packager.set_entrypoint elf (Packager.get_entrypoint elf |> rel);
-  Packager.add_segment elf (List.concat code') bi';
-  Packager.add_segment elf (List.concat tbl) bti;
-  Packager.add_segment elf ([]) ai;
+  let* _ = Packager.add_segment elf (List.concat code') bi', "Error adding code segment" in
+  let* _ = Packager.add_segment elf (List.concat tbls) bti, "Error adding table segment" in
+  let* _ = Packager.add_segment elf ([]) ai, "Error adding abort segment" in
   Packager.save_and_close elf output;
   Printf.printf "Wrote %s\n" output;
   Ok ()
 
 let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:(input ^ "_rw") in
-  let pol, dsets = read_policy pol in
-  let res = main input output pol dsets bi' bti ai in
+  let res = main input output pol bi' bti ai in
   Stdlib.flush Stdlib.stdout;
   res
 

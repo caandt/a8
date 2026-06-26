@@ -56,3 +56,6 @@ Infix ">>=" := maybe_bind (at level 100).
 Definition maybe_op {A B C} (op: A -> B -> C) x y := x >>= \x, y >>= \y, Some (op x y).
 Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
 Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).
+
+(* extract as List.length *)
+Definition len {A} (l:list A) := of_nat (length l).

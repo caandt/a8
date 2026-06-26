@@ -52,7 +52,7 @@ void lief_set_entrypoint(ELFHandle* handle, uint64_t entrypoint) {
     static_cast<LIEF::ELF::Binary*>(handle)->header().entrypoint(entrypoint);
 }
 
-void lief_add_segment(ELFHandle* handle, const uint32_t* data, size_t elements, uint64_t va) {
+bool lief_add_segment(ELFHandle* handle, const uint32_t* data, size_t elements, uint64_t va) {
     auto bin = static_cast<LIEF::ELF::Binary*>(handle);
 
     LIEF::ELF::Segment new_seg;
@@ -65,7 +65,7 @@ void lief_add_segment(ELFHandle* handle, const uint32_t* data, size_t elements, 
     size_t byte_size = elements * 4;
     new_seg.content(std::vector<uint8_t>(byte_ptr, byte_ptr + byte_size));
     new_seg.virtual_address(va);
-    bin->add(new_seg);
+    return bin->add(new_seg) != nullptr;
 }
 
 void lief_write_and_free(ELFHandle* handle, const char* out_path) {

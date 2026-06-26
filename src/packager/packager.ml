@@ -29,7 +29,7 @@ let get_text elf =
     Some (to_u63_list arr, u63_of_u64 (!@ va_ptr))
 
 let get_after elf = Lief.get_after elf |> u63_of_u64
-let get_entrypoint elf = Lief.get_after elf |> u63_of_u64
+let get_entrypoint elf = Lief.get_entrypoint elf |> u63_of_u64
 let set_nx = Lief.set_nx
 
 let set_entrypoint elf (entry: Uint63.t) =
@@ -41,7 +41,7 @@ let add_segment elf (data: Uint63.t list) (addr: Uint63.t) =
   let ptr = CArray.start arr in
   let len = CArray.length arr |> Size_t.of_int in
   let addr = addr |> Uint63.to_int64 |> UInt64.of_int64 in
-  Lief.add_segment elf ptr len addr
+  if Lief.add_segment elf ptr len addr then Some () else None
 
 let save_and_close elf (out_path: string) =
   Lief.write_and_free elf out_path;
