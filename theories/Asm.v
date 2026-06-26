@@ -1,4 +1,4 @@
-Require Import Util.
+Require Import Util Sint63.
 Require Import Lia ZifyUint63.
 
 Module Encode.
@@ -22,37 +22,24 @@ Module Encode.
     (b5 << 31) lor (0x36 << 24) lor (op << 24) lor (b40 << 19) lor (imm14 << 5) lor (Rt).
   Definition UBFX sf N immr imms Rn Rd :=
     (sf << 31) lor (0xa6 << 23) lor (N << 22) lor (immr << 16) lor (imms << 10) lor (Rn << 5) lor (Rd).
+  Definition LDR_r size Rm option S Rn Rt :=
+    (size << 30) lor (0x1c3 << 21) lor (Rm << 16) lor (option << 13) lor (S << 12) lor (2 << 10) lor (Rn << 5) lor (Rt).
 End Encode.
-Definition bounded x bound :=
-  match -bound ?= x, x ?= bound with
-  | Gt, Lt => Some x
-  | _, _ => None
-  end.
+Definition bounded x bw :=
+  let bound := 1<<(bw-1) in
+  if ((-bound <=? x) && (x <? bound))%sint63
+  then Some (x land (1<<bw-1))
+  else None.
 Definition Bcond src dst cond :=
-  match bounded (dst - src) (1<<18) with
-  | Some imm19 => Some (Encode.Bcond imm19 cond)
-  | None => None
-  end.
+  bounded (dst - src) 19 >>=s \imm19, Encode.Bcond imm19 cond.
 Definition B src dst :=
-  match bounded (dst - src) (1<<25) with
-  | Some imm26 => Some (Encode.B imm26)
-  | None => None
-  end.
+  bounded (dst - src) 26 >>=s \imm26, Encode.B imm26.
 Definition BL src dst :=
-  match bounded (dst - src) (1<<25) with
-  | Some imm26 => Some (Encode.BL imm26)
-  | None => None
-  end.
+  bounded (dst - src) 26 >>=s \imm26, Encode.BL imm26.
 Definition CBZ sf op src dst Rt :=
-  match bounded (dst - src) (1<<18) with
-  | Some imm19 => Some (Encode.CBZ sf op imm19 Rt)
-  | None => None
-  end.
+  bounded (dst - src) 19 >>=s \imm19, Encode.CBZ sf op imm19 Rt.
 Definition TBZ b5 op b40 src dst Rt :=
-  match bounded (dst - src) (1<<13) with
-  | Some imm14 => Some (Encode.TBZ b5 op b40 imm14 Rt)
-  | None => None
-  end.
+  bounded (dst - src) 14 >>=s \imm14, Encode.TBZ b5 op b40 imm14 Rt.
 Definition ADR imm Rd :=
   Encode.ADR (imm[0,2]) (imm[2,21]) Rd.
 Definition ADRP imm Rd :=
@@ -74,3 +61,5 @@ Definition MOV imm Rd :=
   end.
 Definition UBFX is64 Rd Rn lsb width :=
   Encode.UBFX (b2i is64) (b2i is64) lsb (lsb+width-1) Rn Rd.
+Definition LDR_r64 Rt Rn Rm :=
+  Encode.LDR_r 3 Rm 3 1 Rn Rt.

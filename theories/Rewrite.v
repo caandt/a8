@@ -1,4 +1,4 @@
-Require Import Util.
+Require Import Util PArray.
 Require Hash Decode Asm.
 Import Decode(ityp(..),decode).
 Import ListNotations.
@@ -49,14 +49,15 @@ Section InstRewriter.
   Section Length.
     Definition len_ADR imm Rd :=
       let dst := (i<<2) + sext imm 21 in
-      of_nat (length (Asm.MOV dst Rd)).
+      len (Asm.MOV dst Rd).
     Definition len_ADRP imm Rd :=
-      let dst := (i<<2 land 0xfff) + sext (imm << 12) 33 in
-      of_nat (length (Asm.MOV dst Rd)).
+      let dst := (i<<2 land (max_int lxor 0xfff)) + sext (imm << 12) 33 in
+      len (Asm.MOV dst Rd).
     Definition len_inst :=
       match isn.(t) with
       | ADR imm Rd => len_ADR imm Rd
       | ADRP imm Rd => len_ADRP imm Rd
+      | RET _ => 10
       | _ => 1
       end.
   End Length.
@@ -65,7 +66,7 @@ Section InstRewriter.
     let dst := (i<<2) + sext imm 21 in
     Asm.MOV dst Rd.
   Definition rw_ADRP imm Rd :=
-    let dst := (i<<2 land 0xfff) + sext (imm << 12) 33 in
+    let dst := (i<<2 land (max_int lxor 0xfff)) + sext (imm << 12) 33 in
     Asm.MOV dst Rd.
   Definition rw_B imm :=
     let dst := i + sext imm 26 in
@@ -87,8 +88,10 @@ Section InstRewriter.
 
   Definition tbl_lookup Rdst Rtmp :=
     Hash.hash_code h Rdst ++
-    Asm.MOV ti Rtmp ++
-    nil.
+    Asm.MOV (ti<<2) Rtmp ++
+    [Asm.LDR_r64 Rdst Rtmp Rdst].
+  Definition rw_RET Rn :=
+    rpad (tbl_lookup Rn 9 ++ [isn.(n)]) 10.
   Definition rw_inst :=
     hook isn match isn.(t) with
     | ignore => Some [isn.(n)]
@@ -100,42 +103,39 @@ Section InstRewriter.
     | BL imm => Some [rw_BL imm orelse UDF]
     | CBZ sf op imm Rt => Some [rw_CBZ sf op imm Rt orelse UDF]
     | TBZ b5 op b40 imm Rt => Some [rw_TBZ b5 op b40 imm Rt orelse UDF]
-    | BR Rn => Some []
-    | BLR Rn => Some []
-    | RET Rn => Some []
+    | BR Rn => Some [UDF]
+    | BLR Rn => Some [UDF]
+    | RET Rn => Some (rw_RET Rn)
     end.
 End InstRewriter.
 
-Definition chunklen (n: int) :=
-  match Decode.decode n with
-  | ignore
-  | invalid => 1
-  | _ => 0
-  end.
-Definition compute_rel
-           (code: list int)
-           (bi bi': int)
-           :=
-  fun x:int => x.
 Fixpoint csum acc base lst :=
   match lst with
   | nil => rev acc
-  | a::t => csum (base+a::acc) (base+a) t
+  | a::t => csum (base::acc) (base+a) t
   end.
+Definition compute_rel (isns: list i_data) (bi bi': int) :=
+  let lens := map len_inst isns in
+  let idxs := array_of_list 0 (csum [] bi' lens) in
+  let ei := bi + len isns in
+  \x, if (bi <=? x) && (x <? ei)
+      then get idxs (x - bi)
+      else x.
 Definition compute_tables rel ai bti dsets :=
   maybe_map (\D,
     let D' := map rel D in
-    Hash.find_hash D D' >>= \h,
-    Some (h, Hash.compute_table_m h ai D D')
-  ) dsets >>= \l,
+    Hash.find_hash D D' >>=s \h,
+    (h, Hash.compute_table_a h ai D D')
+  ) dsets >>=s \l,
     let lens := map (\x, len (snd x)) l in
-    Some (combine l (csum [] bti lens)).
+    combine l (csum [] bti lens).
 Definition rw hook pol dsets code bi bi' bti ai :=
   let isns := mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code in
-  let rel := compute_rel code bi bi' in
+  let rel := compute_rel isns bi bi' in
   compute_tables rel ai bti dsets >>= \tc,
   let d := {| bi := bi; bi' := bi'; bti := bti; ai := ai; code := code;
     pol := pol; dsets := dsets; rel := rel; tc := tc; |} in
-  maybe_map (rw_inst hook d) isns >>= \code',
+  maybe_map (rw_inst hook d) isns >>=s \code',
   let tbls := map (\(_,t,_),t) tc in
-  Some (code', tbls, rel).
+  (code', tbls, rel).
+Definition null_rw := rw (\_,\x,x).

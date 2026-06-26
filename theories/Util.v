@@ -1,5 +1,5 @@
-Require Export Uint63 List Bool Recdef.
-Require Import ZArith.
+Require Export Uint63 List Bool Recdef PArray.
+Require Import ZArith Lia ZifyUint63.
 Open Scope uint63.
 
 Definition xb (n i j: int) :=
@@ -53,9 +53,32 @@ Definition maybe_bind {A B} o (f: A -> option B) :=
   | Some x => f x
   end.
 Infix ">>=" := maybe_bind (at level 100).
+Definition maybe_binds {A B} o (f:A->B) := maybe_bind o (\x, Some (f x)).
+Infix ">>=s" := maybe_binds (at level 100).
 Definition maybe_op {A B C} (op: A -> B -> C) x y := x >>= \x, y >>= \y, Some (op x y).
 Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
 Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).
 
 (* extract as List.length *)
-Definition len {A} (l:list A) := of_nat (length l).
+Definition len {A} (l:list A) := of_nat (List.length l).
+
+
+Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
+  if (n =? 0)
+  then arr.[n]::lst
+  else _list_of_array arr (arr.[n]::lst) (n-1).
+Proof. lia. Defined.
+Definition list_of_array{T} arr := _list_of_array T arr nil (length arr - 1).
+Fixpoint _array_of_list{T} (arr: array T) n lst :=
+  match lst with
+  | nil => arr
+  | a::t => _array_of_list arr.[n<-a] (n+1) t
+  end.
+Definition array_of_list{T} d (lst: list T) := _array_of_list (make (len lst) d) 0 lst.
+
+Function init n (x:int) {measure to_nat n} :=
+  if (n =? 0) then nil else x::init (n-1) x.
+Proof. lia. Defined.
+Definition rpad l n :=
+  let len := len l in
+  if len <? n then l ++ init (n - len) 0 else l.

@@ -11,7 +11,10 @@ let debug_hook (id: CFI.Rewriter.i_data) chunk =
   | _ ->
       let n = Uint63.to_int64 id.n in
       let i = Uint63.to_int64 id.i in
-      Printf.printf "@%Lx: [%Lx] %s\n" (Int64.mul i 4L) n (show_ityp_pp id.t0); chunk
+      Printf.printf "@%Lx: [%Lx] %s => [" (Int64.mul i 4L) n (show_ityp_pp id.t0);
+      let _ = Option.map (fun x -> List.iter (Printf.printf "%Lx;") (List.map Uint63.to_int64 x)) chunk in
+      Printf.printf "]\n";
+      chunk
 (* let debug_hook _ x = x *)
 
 let read_policy policy_file =
@@ -28,15 +31,19 @@ let default_u63 int default =
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
 
+let lsr2 x = Uint63.l_sr x (Uint63.of_int 2)
+let lsl2 x = Uint63.l_sl x (Uint63.of_int 2)
+
 let main input output pol bi' bti ai =
   let* elf = Packager.load input, "Error reading input" in
   let* code, va = Packager.get_text elf, "Error getting text content" in
 
-  let bi = Uint63.l_sr va (Uint63.of_int 2) in
-  let bi' = match bi' with | Some bi' -> Uint63.of_int bi' | None -> Packager.get_after elf in
+  let bi = lsr2 va in
+  let bi' = Option.map Uint63.of_int bi' |> Option.value ~default:(Packager.get_after elf |> lsr2) in
   let bti = default_u63 bti default_bti in
   let ai = default_u63 ai default_ai in
 
+  Printf.printf "bi:%Lx\nbi':%Lx\nbti:%Lx\nai:%Lx\n" (Uint63.to_int64 bi) (Uint63.to_int64 bi') (Uint63.to_int64 bti) (Uint63.to_int64 ai);
   let pol, dsets =
     match pol with
     | None -> (fun _ -> Uint63.zero), [List.init (List.length code) (fun x -> Uint63.add bi (Uint63.of_int x))]
@@ -44,10 +51,11 @@ let main input output pol bi' bti ai =
 
   let* (code', tbls), rel = CFI.Rewriter.rw debug_hook pol dsets code bi bi' bti ai, "Error rewriting code" in
   Packager.set_nx elf;
-  Packager.set_entrypoint elf (Packager.get_entrypoint elf |> rel);
-  let* _ = Packager.add_segment elf (List.concat code') bi', "Error adding code segment" in
-  let* _ = Packager.add_segment elf (List.concat tbls) bti, "Error adding table segment" in
-  let* _ = Packager.add_segment elf ([]) ai, "Error adding abort segment" in
+  let entry' = (Packager.get_entrypoint elf |> lsr2 |> rel |> lsl2) in
+  Packager.set_entrypoint elf entry';
+  let* _ = Packager.add_segment elf (List.concat code') (lsl2 bi'), "Error adding code segment" in
+  let* _ = Packager.add_segment elf (List.concat tbls |> List.concat_map (fun x -> [Uint63.l_and x (Uint63.of_int 0xffff_ffff); Uint63.l_sr x (Uint63.of_int 32)])) (lsl2 bti), "Error adding table segment" in
+  let* _ = Packager.add_segment elf (List.map Uint63.of_int [1;2;3]) (lsl2 ai), "Error adding abort segment" in
   Packager.save_and_close elf output;
   Printf.printf "Wrote %s\n" output;
   Ok ()

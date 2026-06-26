@@ -1,10 +1,11 @@
 From Rewriter Require Import Rewrite.
-Require Import Extraction ExtrOCamlInt63 ExtrOcamlBasic ExtrOCamlPArray.
+Require Import Extraction ExtrOCamlInt63 ExtrOcamlBasic ExtrOCamlPArray PArray.
 
+Extract Constant array "'a" => "'a Parray.t".
 Extraction Language OCaml.
 Set Extraction Output Directory ".".
-Extract Constant List.map => "(fun f l -> Parmap.parmap f (Parmap.L l))".
-Extract Constant Util.mapi => "(fun f l -> Parmap.parmapi (fun i -> f (Uint63.of_int i)) (Parmap.L l))".
+(* Extract Constant List.map => "(fun f l -> Parmap.parmap f (Parmap.L l))". *)
+(* Extract Constant Util.mapi => "(fun f l -> Parmap.parmapi (fun i -> f (Uint63.of_int i)) (Parmap.L l))". *)
 Extract Constant Util.len => "(fun x -> Uint63.of_int (List.length x))".
 Extract Constant Hash.sort_uniq => "(List.sort_uniq (fun (a1,a2) (b1,b2) ->
   match Uint63.compare a1 a2 with

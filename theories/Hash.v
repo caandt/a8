@@ -102,12 +102,6 @@ Section Table.
         assign_table h a.[hash_func h (4*i)<-4*i'].[hash_func h (4*i')<-4*i'] t t'
     | _, _ => a
     end.
-  Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
-    if (n =? 0)
-    then arr.[n]::lst
-    else _list_of_array arr (arr.[n]::lst) (n-1).
-  Proof. lia. Defined.
-  Definition list_of_array{T} arr := _list_of_array T arr nil (length arr - 1).
   Definition compute_table_a h ai D D' :=
     list_of_array (assign_table h (make (hash_size h) ai) D D').
   Function _list_of_entries entries lst n (default: int) {measure to_nat n} :=
