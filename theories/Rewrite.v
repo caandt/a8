@@ -1,4 +1,4 @@
-Require Import Util PArray.
+Require Import Util.
 Require Hash Decode Asm.
 Import Decode(ityp(..),decode).
 Import ListNotations.
@@ -32,7 +32,6 @@ Structure i_data := {
   n: int;
   t: ityp;
 }.
-Definition sext n w := asr (n << (63 - w)) (63 - w).
 
 Section InstRewriter.
   Variable hook : i_data -> option (list int) -> option (list int).
@@ -47,16 +46,16 @@ Section InstRewriter.
   Notation ti := (snd tbl).
   Notation h := (fst (fst tbl)).
   Section Length.
-    Definition len_ADR imm Rd :=
+    Definition len_ADR imm :=
       let dst := (i<<2) + sext imm 21 in
-      len (Asm.MOV dst Rd).
-    Definition len_ADRP imm Rd :=
+      Asm.b16c dst.
+    Definition len_ADRP imm :=
       let dst := (i<<2 land (max_int lxor 0xfff)) + sext (imm << 12) 33 in
-      len (Asm.MOV dst Rd).
+      Asm.b16c dst.
     Definition len_inst :=
       match isn.(t) with
-      | ADR imm Rd => len_ADR imm Rd
-      | ADRP imm Rd => len_ADRP imm Rd
+      | ADR imm Rd => len_ADR imm
+      | ADRP imm Rd => len_ADRP imm
       | RET _ => 10
       | _ => 1
       end.
@@ -109,17 +108,15 @@ Section InstRewriter.
     end.
 End InstRewriter.
 
-Fixpoint csum acc base lst :=
-  match lst with
-  | nil => rev acc
-  | a::t => csum (base::acc) (base+a) t
-  end.
 Definition compute_rel (isns: list i_data) (bi bi': int) :=
+  let* _ := print_endline "compute_rel: start" in
   let lens := map len_inst isns in
-  let idxs := array_of_list 0 (csum [] bi' lens) in
+  let* _ := print_endline "compute_rel: finished map len" in
+  let idxs := csum bi' lens in
+  let* _ := print_endline "compute_rel: finished csum" in
   let ei := bi + len isns in
   \x, if (bi <=? x) && (x <? ei)
-      then get idxs (x - bi)
+      then PArray.get idxs (x - bi)
       else x.
 Definition compute_tables rel ai bti dsets :=
   maybe_map (\D,
@@ -128,14 +125,19 @@ Definition compute_tables rel ai bti dsets :=
     (h, Hash.compute_table_a h ai D D')
   ) dsets >>=s \l,
     let lens := map (\x, len (snd x)) l in
-    combine l (csum [] bti lens).
+    combine l (list_of_array (csum bti lens)).
 Definition rw hook pol dsets code bi bi' bti ai :=
+  let* _ := print_endline "rw: start" in
   let isns := mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code in
+  let* _ := print_endline "rw: finished mapi isns" in
   let rel := compute_rel isns bi bi' in
+  let* _ := print_endline "rw: finished rel" in
   compute_tables rel ai bti dsets >>= \tc,
+  let* _ := print_endline "rw: finished tables" in
   let d := {| bi := bi; bi' := bi'; bti := bti; ai := ai; code := code;
     pol := pol; dsets := dsets; rel := rel; tc := tc; |} in
   maybe_map (rw_inst hook d) isns >>=s \code',
+  let* _ := print_endline "rw: finished inst rw" in
   let tbls := map (\(_,t,_),t) tc in
   (code', tbls, rel).
 Definition null_rw := rw (\_,\x,x).

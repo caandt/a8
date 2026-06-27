@@ -5,5 +5,5 @@
 
 (library
  (name CFI)
- (libraries coq-primitive.uint63 coq-primitive.parray parmap)
+ (libraries coq-primitive.uint63 coq-primitive.parray coq-primitive.pstring parmap)
  (modules Rewriter))

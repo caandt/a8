@@ -52,12 +52,23 @@ Function b16s imm hw {measure (\x, to_nat (4 - x)) hw} :=
        else (imm land 0xffff, hw)::rest
   else nil.
 Proof. all: lia. Defined.
+Definition b16s' imm :=
+  (imm >> 48            )::
+  (imm >> 32 land 0xffff)::
+  (imm >> 16 land 0xffff)::
+  (imm       land 0xffff)::nil.
+
+Definition b16c imm :=
+  max 1 (4 - (imm land 0x7fff_0000_0000_0000 =? 0)
+  - (imm land 0xffff_0000_0000 =? 0)
+  - (imm land 0xffff_0000 =? 0)
+  - (imm land 0xffff =? 0))%uint63.
 Definition MOV imm Rd :=
   match b16s imm 0 with
   | nil => Encode.MOVZ 1 0 0 Rd::nil
   | (imm, sf)::t =>
       Encode.MOVZ 1 sf imm Rd
-      ::map (\(imm, sf), Encode.MOVK 1 sf imm Rd) t
+      ::map_single (\(imm, sf), Encode.MOVK 1 sf imm Rd) t
   end.
 Definition UBFX is64 Rd Rn lsb width :=
   Encode.UBFX (b2i is64) (b2i is64) lsb (lsb+width-1) Rn Rd.
