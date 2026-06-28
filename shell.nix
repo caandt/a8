@@ -24,6 +24,7 @@
     dune
     pkgsCross.aarch64-multiplatform.stdenv.cc
     lief
+    perf
   ];
   coq-libs = [
     rocq-picinae
