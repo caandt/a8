@@ -103,7 +103,7 @@ Section Table.
     | _, _ => a
     end.
   Definition compute_table_a h ai D D' :=
-    list_of_array (assign_table h (make (hash_size h) ai) D D').
+    list_of_array (assign_table h (make (hash_size h) (4*ai)) D D').
   Function _list_of_entries entries lst n (default: int) {measure to_nat n} :=
     if (0 <? n) then
       match entries with
@@ -120,6 +120,6 @@ Section Table.
     let entries := (map (\(i, i'), (hash_func h (4*i), 4*i')) (combine D D')) in
     let entries' := (map (\i', (hash_func h (4*i'), 4*i')) D') in
     let all_entries := sort_uniq (entries++entries') in
-    list_of_entries all_entries (hash_size h) ai.
+    list_of_entries all_entries (hash_size h) (4*ai).
 
 End Table.

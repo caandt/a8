@@ -38,7 +38,7 @@ let default_u63 int default =
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
 
-let main input output pol bi' bti ai =
+let main input output pol bi' bti ai abort =
   let* elf = Packager.load input, "Error reading input" in
   let* code, va = Packager.get_text elf, "Error getting text content" in
 
@@ -59,14 +59,15 @@ let main input output pol bi' bti ai =
   Packager.set_entrypoint elf entry';
   let* _ = Packager.add_segment elf (List.concat code') (lsl2 bi'), "Error adding code segment" in
   let* _ = Packager.add_segment elf (List.concat tbls |> List.concat_map (fun x -> [Uint63.l_and x (Uint63.of_int 0xffff_ffff); Uint63.l_sr x (Uint63.of_int 32)])) (lsl2 bti), "Error adding table segment" in
-  let* _ = Packager.add_segment elf (List.map Uint63.of_int [1;2;3]) (lsl2 ai), "Error adding abort segment" in
+  let* _ = Packager.add_segment_str elf abort (lsl2 ai), "Error adding abort segment" in
   Packager.save_and_close elf output;
   Printf.printf "Wrote %s\n" output;
   Ok ()
 
 let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:(input ^ "_rw") in
-  let res = main input output pol bi' bti ai in
+  let abort = Option.fold ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all) ~none:Abort.data abort in
+  let res = main input output pol bi' bti ai abort in
   Stdlib.flush Stdlib.stdout;
   res
 

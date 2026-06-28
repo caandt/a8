@@ -41,6 +41,13 @@ let add_segment elf (data: Uint63.t list) (addr: Uint63.t) =
   let addr = addr |> Uint63.to_int64 |> UInt64.of_int64 in
   if Lief.add_segment elf ptr len addr then Some () else None
 
+let add_segment_str elf (data: string) (addr: Uint63.t) =
+  let arr = CArray.of_string data in
+  let ptr = coerce (ptr char) (ptr uint32_t) @@ CArray.start arr in
+  let len = String.length data / 4 |> Size_t.of_int in
+  let addr = addr |> Uint63.to_int64 |> UInt64.of_int64 in
+  if Lief.add_segment elf ptr len addr then Some () else None
+
 let save_and_close elf (out_path: string) =
   Lief.write_and_free elf out_path;
   Unix.chmod out_path 0o755

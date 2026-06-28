@@ -1,4 +1,4 @@
 (executable
  (name main)
- (libraries CFI packager cmdliner)
+ (libraries CFI abort packager cmdliner)
  (preprocess (staged_pps ppx_import ppx_deriving.show)))
