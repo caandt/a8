@@ -34,7 +34,7 @@ Structure i_data := {
 }.
 
 Section InstRewriter.
-  Variable hook : i_data -> option (list int) -> option (list int).
+  Variable hook : data -> i_data -> option (list int) -> option (list int).
   Variable dat : data.
   Variable isn : i_data.
   Notation rel := dat.(rel).
@@ -92,7 +92,7 @@ Section InstRewriter.
   Definition rw_RET Rn :=
     rpad (tbl_lookup Rn 9 ++ [isn.(n)]) 10.
   Definition rw_inst :=
-    hook isn match isn.(t) with
+    hook dat isn match isn.(t) with
     | ignore => Some [isn.(n)]
     | invalid => Some [goto_abort]
     | ADR imm Rd => Some (rw_ADR imm Rd)
@@ -140,4 +140,4 @@ Definition rw hook pol dsets code bi bi' bti ai :=
   let* _ := print_endline "rw: finished inst rw" in
   let tbls := map (\(_,t,_),t) tc in
   (code', tbls, rel).
-Definition null_rw := rw (\_,\x,x).
+Definition null_rw := rw (\_,\_,\x,x).

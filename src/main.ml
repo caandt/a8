@@ -12,15 +12,17 @@ module Uint63 = struct
 end
 type ityp_pp = [%import: CFI.Rewriter.ityp] [@@deriving show]
 
-let debug_hook (id: CFI.Rewriter.i_data) chunk =
+let debug_hook (dat: CFI.Rewriter.data) (id: CFI.Rewriter.i_data) chunk =
+  (* if (lsl2 id.i |> u <> 0x400908L) then chunk else *)
+  if (id.i |> u % lsl2 % dat.rel <> 0x4a7d04L) then chunk else
   match id.t0 with
-  | Ignore -> chunk
+  (* | Ignore -> chunk *)
   | _ ->
       let c = Option.fold ~some:(String.concat ";" % List.map hex) ~none:"none" chunk in
       Printf.printf "[%Lx]@%Lx: %s => [%s]\n" (u id.n) (lsl2 id.i|>u) (show_ityp_pp id.t0) c;
       Stdlib.flush Stdlib.stdout;
       chunk
-(* let debug_hook _ x = x *)
+(* let debug_hook _ _ x = x *)
 
 let read_policy policy_file =
   (fun _ -> Uint63.zero), []
