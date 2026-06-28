@@ -65,14 +65,14 @@ Definition dc_cb n :=
   let sf := n[31] in
   let op := n[24] in
   let imm := n[5,24] in
-  let Rt := n[0,4] in
+  let Rt := n[0,5] in
   CBZ sf op imm Rt.
 Definition dc_tb n :=
   let b5 := n[31] in
   let op := n[24] in
   let b40 := n[19,24] in
   let imm := n[5,19] in
-  let Rt := n[0,4] in
+  let Rt := n[0,5] in
   TBZ b5 op b40 imm Rt.
 
 Definition dc_b (n:int) :=
@@ -99,7 +99,7 @@ Definition dc_pcr n :=
   let op := n[31] in
   let immlo := n[29,31] in
   let immhi := n[5,24] in
-  let Rd := n[0,4] in
+  let Rd := n[0,5] in
   let imm := immhi << 2 lor immlo in
   if (op =? 0)
   then ADR imm Rd
