@@ -24,6 +24,8 @@ Module Encode.
     (sf << 31) lor (0xa6 << 23) lor (N << 22) lor (immr << 16) lor (imms << 10) lor (Rn << 5) lor (Rd).
   Definition LDR_r size Rm option S Rn Rt :=
     (size << 30) lor (0x1c3 << 21) lor (Rm << 16) lor (option << 13) lor (S << 12) lor (2 << 10) lor (Rn << 5) lor (Rt).
+  Definition LDP_STP opc pre L imm7 Rt2 Rn Rt :=
+    (opc << 30) lor (0x51 << 23) lor (pre << 24) lor (L << 22) lor (imm7 << 15) lor (Rt2 << 10) lor (Rn << 5) lor (Rt).
 End Encode.
 Definition bounded x bw :=
   let bound := 1<<(bw-1) in
@@ -72,5 +74,11 @@ Definition MOV imm Rd :=
   end.
 Definition UBFX is64 Rd Rn lsb width :=
   Encode.UBFX (b2i is64) (b2i is64) lsb (lsb+width-1) Rn Rd.
-Definition LDR_r64 Rt Rn Rm :=
-  Encode.LDR_r 3 Rm 3 1 Rn Rt.
+Definition LDR_r64 Xt Xn Xm :=
+  Encode.LDR_r 3 Xm 3 1 Xn Xt.
+Definition STP_pre64 Xt1 Xt2 Xn imm :=
+  bounded (imm>>3) 7 >>=s \imm7, Encode.LDP_STP 2 1 0 imm7 Xt2 Xn Xt1.
+Definition LDP_post64 Xt1 Xt2 Xn imm :=
+  bounded (imm>>3) 7 >>=s \imm7, Encode.LDP_STP 2 0 1 imm7 Xt2 Xn Xt1.
+Definition PUSH2 Xt1 Xt2 := STP_pre64 Xt1 Xt2 31 (-0x10) orelse 0.
+Definition POP2 Xt1 Xt2 := LDP_post64 Xt1 Xt2 31 (0x10) orelse 0.

@@ -56,11 +56,12 @@ Section InstRewriter.
       match isn.(t) with
       | ADR imm Rd => len_ADR imm
       | ADRP imm Rd => len_ADRP imm
-      | RET _ => 10
+      | BR _ | BLR _ | RET _ => 10
       | _ => 1
       end.
   End Length.
   Definition UDF := 0.
+  Definition NOP := 0xd503201f.
   Definition rw_ADR imm Rd :=
     let dst := (i<<2) + sext imm 21 in
     Asm.MOV dst Rd.
@@ -89,8 +90,24 @@ Section InstRewriter.
     Hash.hash_code h Rdst ++
     Asm.MOV (ti<<2) Rtmp ++
     [Asm.LDR_r64 Rdst Rtmp Rdst].
+  Definition rw_BR Rn :=
+    rpad (
+      [Asm.PUSH2 (Rn+1) (Rn+2)] ++
+      tbl_lookup Rn (Rn+1) ++
+      [Asm.POP2 (Rn+1) (Rn+2); isn.(n)]
+    ) 10 UDF.
+  Definition rw_BLR Rn :=
+    rpad (
+      [Asm.PUSH2 (Rn+1) (Rn+2)] ++
+      tbl_lookup Rn (Rn+1) ++
+      [Asm.POP2 (Rn+1) (Rn+2)]
+    ) 9 NOP ++ [isn.(n)].
   Definition rw_RET Rn :=
-    rpad (tbl_lookup Rn 9 ++ [isn.(n)]) 10.
+    rpad (
+      [Asm.PUSH2 (Rn-1) (Rn-2)] ++
+      tbl_lookup Rn (Rn-1) ++
+      [Asm.POP2 (Rn-1) (Rn-2); isn.(n)]
+    ) 10 UDF.
   Definition rw_inst :=
     hook dat isn match isn.(t) with
     | ignore => Some [isn.(n)]
@@ -102,8 +119,8 @@ Section InstRewriter.
     | BL imm => Some [rw_BL imm orelse UDF]
     | CBZ sf op imm Rt => Some [rw_CBZ sf op imm Rt orelse UDF]
     | TBZ b5 op b40 imm Rt => Some [rw_TBZ b5 op b40 imm Rt orelse UDF]
-    | BR Rn => Some [UDF]
-    | BLR Rn => Some [UDF]
+    | BR Rn => Some (rw_BR Rn)
+    | BLR Rn => Some (rw_BLR Rn)
     | RET Rn => Some (rw_RET Rn)
     end.
 End InstRewriter.

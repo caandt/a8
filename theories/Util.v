@@ -81,9 +81,9 @@ Definition array_of_list{T} d (lst: list T) := _array_of_list (PArray.make (len 
 Function init n (x:int) {measure to_nat n} :=
   if (n =? 0) then nil else x::init (n-1) x.
 Proof. lia. Defined.
-Definition rpad l n :=
+Definition rpad l n x :=
   let len := len l in
-  if len <? n then l ++ init (n - len) 0 else l.
+  if len <? n then l ++ init (n - len) x else l.
 
 Variant _letintoken := _letintokenIN | _letintokenEXTRACTION.
 Definition _letin{A B} (a:A) (_:{x:_letintoken|x=_letintokenIN}) (b:A->B) (_:{x:_letintoken|x=_letintokenEXTRACTION}) := b a.
