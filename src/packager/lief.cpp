@@ -30,7 +30,8 @@ uint64_t lief_get_after(ELFHandle* handle) {
     for (LIEF::ELF::Segment& seg : elf->segments()) {
         max = std::max(max, seg.virtual_address() + seg.virtual_size());
     }
-    return ((max >> 12) + 1) << 12;
+    // lief will put the phdr after, so skip one additional page
+    return ((max >> 12) + 2) << 12;
 }
 
 uint64_t lief_get_entrypoint(ELFHandle* handle) {
