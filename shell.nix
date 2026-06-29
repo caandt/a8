@@ -18,11 +18,25 @@
     };
     nativeBuildInputs = [pkgs.coq_8_20];
   };
+  a64pkgs = pkgs.pkgsCross.aarch64-multiplatform;
+  a64-cc = pkgs.symlinkJoin {
+    name = "a64-cc";
+    paths = [a64pkgs.stdenv.cc.bintools a64pkgs.stdenv.cc];
+    nativeBuildInputs = [pkgs.makeWrapper];
+    postBuild = ''
+      for bin in aarch64-unknown-linux-gnu-gcc aarch64-unknown-linux-gnu-g++; do
+        wrapProgram $out/bin/$bin \
+          --add-flags "-L${a64pkgs.glibc.static}/lib" \
+          --add-flags "-B${a64pkgs.glibc.static}/lib" \
+          --add-flags "-I${a64pkgs.glibc.static}/include"
+      done
+    '';
+  };
   packages = with pkgs; [
     ocaml
     coq_8_20
     dune
-    pkgsCross.aarch64-multiplatform.stdenv.cc
+    a64-cc
     lief
     perf
   ];
