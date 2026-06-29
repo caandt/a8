@@ -48,6 +48,10 @@ let add_segment_str elf (data: string) (addr: Uint63.t) =
   let addr = addr |> Uint63.to_int64 |> UInt64.of_int64 in
   if Lief.add_segment elf ptr len addr then Some () else None
 
+let update_symbols elf (rel: Uint63.t -> Uint63.t) =
+  let rel' u64 = u63_of_u64 u64 |> rel |> u64_of_u63 in
+  Lief.update_symbols elf rel'
+
 let save_and_close elf (out_path: string) =
   Lief.write_and_free elf out_path;
   Unix.chmod out_path 0o755

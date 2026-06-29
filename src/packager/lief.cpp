@@ -74,6 +74,33 @@ void lief_write_and_free(ELFHandle* handle, const char* out_path) {
     delete bin;
 }
 
+typedef uint64_t (*rel_t)(uint64_t old_address);
+
+void lief_update_symbols(ELFHandle* handle, rel_t rel) {
+    auto bin = static_cast<LIEF::ELF::Binary*>(handle);
+
+    for (LIEF::ELF::Symbol& sym : bin->symbols()) {
+        if (sym.type() == LIEF::ELF::Symbol::TYPE::FUNC && sym.value() != 0) {
+            assert((sym.value() & 0b11) == 0);
+            auto start = rel(sym.value() >> 2) << 2;
+            auto end = rel((sym.value() + sym.size()) >> 2) << 2;
+            sym.value(start);
+            sym.size(end - start);
+        }
+    }
+    for (LIEF::ELF::Symbol& sym : bin->dynamic_symbols()) {
+        if (sym.type() == LIEF::ELF::Symbol::TYPE::FUNC && sym.value() != 0) {
+            assert((sym.value() & 0b11) == 0);
+            sym.value(rel(sym.value() >> 2) << 2);
+        }
+    }
+
+    auto txt = bin->get_section(".text");
+    if (txt != nullptr) {
+        txt->virtual_address(rel(txt->virtual_address() >> 2) << 2);
+    }
+}
+
 // force the linker to keep this file in the archive
 void _force_link() {}
 
