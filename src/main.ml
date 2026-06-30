@@ -10,7 +10,12 @@ module Uint63 = struct
   include Uint63
   let pp fmt x = Format.pp_print_string fmt (hex x)
 end
-type ityp_pp = [%import: CFI.Rewriter.ityp] [@@deriving show]
+type ityp = [%import: CFI.Rewriter.ityp] [@@deriving show]
+type eident = [%import: CFI.Rewriter.eident] [@@deriving show]
+type ehdr = [%import: CFI.Rewriter.ehdr] [@@deriving show]
+type phdr = [%import: CFI.Rewriter.phdr] [@@deriving show]
+
+(* let show_elf x = Option.fold (CFI.Rewriter.parse_elf x) ~some:[%show: ehdr * phdr list] ~none:"uhhh" *)
 
 let debug_hook (dat: CFI.Rewriter.data) (id: CFI.Rewriter.i_data) chunk =
   (* if (lsl2 id.i |> u <> 0x400908L) then chunk else *)
@@ -19,7 +24,7 @@ let debug_hook (dat: CFI.Rewriter.data) (id: CFI.Rewriter.i_data) chunk =
   (* | Ignore -> chunk *)
   | _ ->
       let c = Option.fold ~some:(String.concat ";" % List.map hex) ~none:"none" chunk in
-      Printf.printf "[%Lx]@%Lx: %s => [%s]\n" (u id.n) (lsl2 id.i|>u) (show_ityp_pp id.t0) c;
+      Printf.printf "[%Lx]@%Lx: %s => [%s]\n" (u id.n) (lsl2 id.i|>u) (show_ityp id.t0) c;
       Stdlib.flush Stdlib.stdout;
       chunk
 (* let debug_hook _ _ x = x *)
@@ -66,6 +71,14 @@ let main input output pol bi' bti ai abort =
   Ok ()
 
 let run input output pol bi' bti ai abort =
+  let e = In_channel.with_open_bin input In_channel.input_all in
+  let e = Pstring.unsafe_of_string e in
+  let c = Pstring.unsafe_of_string "N,\x8f\xd2\xaeL\xac\xf2.\xaf\xcc\xf2\xee\x0f\x1f\xf8O \x80\xd2l \x80\xd2\x8f\x01\x0f\xca\xe0\x03\x0f\xaa\xe1c?\x8b\" \x80\xd2\xee \x80\xd2\xc2\x01\x02\xca\x08\x08\x80\xd2\x01\x00\x00\xd4" in
+  let a = Uint63.of_int 0xfff00000 in 
+  let* e' = CFI.Rewriter.replace_segment e c a, "uhhh" in
+  let e' = CFI.Rewriter.set_entrypoint e' (Uint63.of_int 0xfff00000) in
+  Out_channel.with_open_bin "/tmp/fuckyou" (fun oc -> Out_channel.output_string oc (Pstring.to_string e'));
+  let _ = exit 0 in
   let output = Option.value output ~default:(input ^ "_rw") in
   let abort = Option.fold ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all) ~none:Abort.data abort in
   let res = main input output pol bi' bti ai abort in
