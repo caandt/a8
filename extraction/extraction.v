@@ -13,4 +13,4 @@ Extract Constant Hash.sort_uniq => "(List.sort_uniq (fun (a1,a2) (b1,b2) ->
 (* Extract Constant Util.maybe_map => "(fun f l -> Parmap.parmapfold f (Parmap.L l) (maybe_op List.cons) (Some []) (maybe_op List.append))". *)
 
 Set Extraction Output Directory ".".
-Extraction "Rewriter" rw replace_segment set_entrypoint.
+Extraction "Rewriter" rw_elf.

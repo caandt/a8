@@ -120,7 +120,7 @@ Function range step i n {measure to_nat n} :=
 Proof. lia. Defined.
 Definition phdr_offsets := range 56.
 Definition to_words sl := map (getu32 sl) (range 4 0 (sllength sl >> 2)).
-Definition of_chunks (lli: list (list int)) := map (\x, of_list (List.concat (map u32 x))) lli.
+Definition of_chunks (lli: list (list int)) := map (\x, of_list (List.concat (map_single u32 x))) lli.
 Definition parse_phdr s ehdr :=
   let n := ehdr.(e_phnum) in
   if (n =? 0xffff) then None else
@@ -187,15 +187,25 @@ Definition phdr_contenti elf i :=
 Definition get_page_after elf :=
   let f p := p.(p_vaddr) + p.(p_memsz) in
   let m := fold_left Uint63.max (map f elf.(phdrs)) 0 in
-  ((m >> 12) + 1) << 10.
+  ((m >> 12) + 2) << 10.
 Definition phdr_content elf phdr :=
   slsub elf.(data) phdr.(p_offset) phdr.(p_filesz).
 Definition rw_elf d pol dsets :=
+  let* _ := print_endline "parsing elf" in
   parse_elf d >>= \elf,
+  let* _ := print_endline "getting txt seg" in
   txt_seg elf >>= \ts,
+  let* _ := print_endline "getting txt content" in
   let txt := phdr_content elf ts in
+  let* _ := print_endline "getting page" in
   let bi' := get_page_after elf in
-  null_rw pol dsets (to_words txt) (ts.(p_vaddr)) bi' 0 0 >>= \(txt',tbl,rel),
+  let* _ := print_endline "rewriting" in
+  null_rw pol dsets (to_words txt) (ts.(p_vaddr)>>2) bi' 0 0 >>= \(txt',tbl,rel),
+  let* _ := print_endline "setting nx" in
   let elf := set_nx elf in
-  let elf := set_entrypoint elf (rel elf.(ehdr).(e_entry)) in
-  with_load_seg elf (strl_of_list (of_chunks txt')) bi' >>=s data.
+  let* _ := print_endline "setting entrypoint" in
+  let elf := set_entrypoint elf (rel (elf.(ehdr).(e_entry) >> 2) << 2) in
+  let* _ := print_endline "converting chunks" in
+  let txt' := strl_of_list (of_chunks txt') in
+  let* _ := print_endline "adding load seg" in
+  with_load_seg elf (txt') (bi'<<2) >>=s data.
