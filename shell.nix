@@ -40,11 +40,12 @@
     lief
     perf
   ];
-  coq-libs = [
+  coq-libs = with pkgs.coqPackages_8_20; [
     rocq-picinae
-    coq-primitives
+    coq-record-update
   ];
   ocaml-libs = with pkgs.ocamlPackages; [
+    coq-primitives
     findlib
     ctypes
     ctypes-foreign
