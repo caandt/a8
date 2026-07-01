@@ -29,31 +29,23 @@ Definition dc_b_reg (n:int) :=
   let op3 := n[10,16] in
   let Rn := n[5,10] in
   let op4 := n[0,5] in
-  if (op2 =? 31)
-  then match tob4 opc with
-       | 0b0000 =>
-           if (op3 =? 0)
-           then
-             if (op4 =? 0)
-             then BR Rn
-             else ignore
-           else invalid
-       | 0b0001 =>
-           if (op3 =? 0)
-           then
-             if (op4 =? 0)
-             then BLR Rn
-             else ignore
-           else invalid
-       | 0b0010 =>
-           if (op3 =? 0)
-           then
-             if (op4 =? 0)
-             then RET Rn
-             else ignore
-           else invalid
-       | _ => invalid
-       end
+  if (op2 =? 31) then
+    if (opc =? 0) then
+      if (op3 =? 0) then
+        if (op4 =? 0) then BR Rn
+        else ignore
+      else invalid
+    else if (opc =? 1) then
+      if (op3 =? 0) then
+        if (op4 =? 0) then BLR Rn
+        else ignore
+      else invalid
+    else if (opc =? 2) then
+      if (op3 =? 0) then
+        if (op4 =? 0) then RET Rn
+        else ignore
+      else invalid
+    else invalid
   else ignore.
 Definition dc_b_imm n :=
   let imm26 := n[0,26] in
@@ -77,24 +69,21 @@ Definition dc_tb n :=
 
 Definition dc_b (n:int) :=
   let op0 := n[29,32] in
-  (* let op1 := n[12,26] in *)
-  (* let op2 := n[0,5] in *)
-  match tob4 op0 with
-  | 0b0010 =>
-      if (n[25] =? 0)
-      then dc_b_cond n
-      else ignore
-  | 0b0110 =>
-      if (n[25] =? 1)
-      then dc_b_reg n
-      else ignore
-  | b4 O _ O O => dc_b_imm n
-  | b4 O _ O I =>
-      if (n[25] =? 0)
-      then dc_cb n
-      else dc_tb n
-  | _ => ignore
-  end.
+  if (op0 =? 2) then
+    if (n[25] =? 0)
+    then dc_b_cond n
+    else ignore
+  else if (op0 =? 6) then
+    if (n[25] =? 1)
+    then dc_b_reg n
+    else ignore
+  else if (op0 =? 0) || (op0 =? 4) then
+    dc_b_imm n
+  else if (op0 =? 1) || (op0 =? 5) then
+    if (n[25] =? 0)
+    then dc_cb n
+    else dc_tb n
+  else ignore.
 Definition dc_pcr n :=
   let op := n[31] in
   let immlo := n[29,31] in
