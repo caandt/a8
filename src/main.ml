@@ -71,14 +71,6 @@ let main input output pol bi' bti ai abort =
   Ok ()
 
 let run input output pol bi' bti ai abort =
-  let e = In_channel.with_open_bin input In_channel.input_all in
-  let e = Pstring.unsafe_of_string e in
-  let c = Pstring.unsafe_of_string "N,\x8f\xd2\xaeL\xac\xf2.\xaf\xcc\xf2\xee\x0f\x1f\xf8O \x80\xd2l \x80\xd2\x8f\x01\x0f\xca\xe0\x03\x0f\xaa\xe1c?\x8b\" \x80\xd2\xee \x80\xd2\xc2\x01\x02\xca\x08\x08\x80\xd2\x01\x00\x00\xd4" in
-  let a = Uint63.of_int 0xfff00000 in 
-  let* e' = CFI.Rewriter.replace_segment e c a, "uhhh" in
-  let e' = CFI.Rewriter.set_entrypoint e' (Uint63.of_int 0xfff00000) in
-  Out_channel.with_open_bin "/tmp/fuckyou" (fun oc -> Out_channel.output_string oc (Pstring.to_string e'));
-  let _ = exit 0 in
   let output = Option.value output ~default:(input ^ "_rw") in
   let abort = Option.fold ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all) ~none:Abort.data abort in
   let res = main input output pol bi' bti ai abort in
