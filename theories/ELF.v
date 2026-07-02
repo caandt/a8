@@ -50,7 +50,7 @@ Record Phdr := {
 Record ELF := {
   ehdr: Ehdr;
   phdrs: list Phdr;
-  data: strl;
+  data: list string;
 }.
 Definition parse_eident s :=
   let ei_mag := getu32 s 0 in
@@ -147,15 +147,15 @@ Definition txt_seg elf := find is_txt_seg elf.(phdrs).
 Definition load_seg offset vaddr content :=
   Build_Phdr PT_LOAD PFLAG_RX offset vaddr vaddr (sllength content) (sllength content) 0x1000.
 Definition phdr_data p :=
-  strl_of_string (of_list (
-    u32 p.(p_type) ++
-    u32 p.(p_flags) ++
-    u64 p.(p_offset) ++
-    u64 p.(p_vaddr) ++
-    u64 p.(p_paddr) ++
-    u64 p.(p_filesz) ++
-    u64 p.(p_memsz) ++
-    u64 p.(p_align)
+  (map of_list (
+    u32 p.(p_type)::
+    u32 p.(p_flags)::
+    u64 p.(p_offset)::
+    u64 p.(p_vaddr)::
+    u64 p.(p_paddr)::
+    u64 p.(p_filesz)::
+    u64 p.(p_memsz)::
+    u64 p.(p_align)::nil
   )).
 
 Definition append_data elf d :=
@@ -174,14 +174,14 @@ Definition with_load_seg elf content vaddr :=
   let padding := (0x1000 - sllength elf.(data) land 0xfff) land 0xfff in
   let offset := sllength elf.(data) + padding in
   let elf := replace_phdr elf (load_seg offset vaddr content) i in
-  append_data elf (strl_of_string (make padding 0)++content).
+  append_data elf (make padding 0::content).
 Definition set_nx := map_phdrs (\p,
   if is_txt_seg p then Some (p <| p_flags ::= pred |>)
   else None
 ).
 Definition set_entrypoint elf entry :=
   elf <| ehdr; e_entry := entry |>
-      <| data ::= \d, slsplice d 24 (strl_of_string (of_list (u64 entry))) |>.
+      <| data ::= \d, slsplice d 24 (of_list (u64 entry)::nil) |>.
 Definition phdr_contenti elf i :=
   nth_error elf.(phdrs) (to_nat i) >>=s \phdr,
   slsub elf.(data) phdr.(p_offset) phdr.(p_filesz).
@@ -192,24 +192,16 @@ Definition get_page_after elf :=
 Definition phdr_content elf phdr :=
   slsub elf.(data) phdr.(p_offset) phdr.(p_filesz).
 Definition rw_elf bytes pol dsets abort :=
-  let* _ := print_endline "parsing elf" in
   parse_elf bytes >>= \elf,
-  let* _ := print_endline "getting txt seg" in
   txt_seg elf >>= \ts,
-  let* _ := print_endline "getting txt content" in
   let code := phdr_content elf ts in
-  let* _ := print_endline "getting page" in
   let bi := ts.(p_vaddr) >> 2 in
   let bi' := get_page_after elf in
-  let* _ := print_endline "rewriting" in
   global_data (to_words code) bi bi' pol dsets (sllength abort >> 2) >>= \d,
   null_rw d >>= \code',
-  let content := (of_chunks32 code' ++ proj1_sig abort ++ of_chunks64 (map (\(_,x,_),x) d.(tc)))%list in
-  let* _ := print_endline "setting nx" in
+  let content := (of_chunks32 code' ++ abort ++ of_chunks64 (map (\(_,x,_),x) d.(tc)))%list in
   let elf := set_nx elf in
-  let* _ := print_endline "setting entrypoint" in
   let elf := set_entrypoint elf (d.(rel) (elf.(ehdr).(e_entry) >> 2) << 2) in
-  let* _ := print_endline "converting chunks" in
-  let content := strl_of_list content in
-  let* _ := print_endline "adding load seg" in
+  let content := content in
   with_load_seg elf content (bi'<<2) >>=s data.
+
