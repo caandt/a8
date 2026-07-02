@@ -1,20 +1,16 @@
-Require Export Uint63 List Bool Recdef.
-Require Import ZArith Lia ZifyUint63.
+Require Export Uint63 List Bool Recdef Lia ZifyUint63.
+From stdpp Require Export option.
 Require PArray PrimString.
 Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
 Open Scope uint63.
 
-Definition xb (n i j: int) :=
-  (n >> i) land (1 << (j - i) - 1).
-Notation "n [ i , j ]" := (xb n i j) (at level 30, format "n [ i ,  j ]").
-Notation "n [ b ]" := (xb n b%uint63 (b%uint63 + 1)) (at level 30, format "n [ b ]").
+Definition xb (n i j: int) := (n >> i) land (1 << (j - i) - 1).
+Notation "n `[ i , j ]" := (xb n i j) (at level 30, format "n `[ i ,  j ]").
+Notation "n `[ b ]" := (xb n b%uint63 (b%uint63 + 1)) (at level 30, format "n `[ b ]").
 
-Definition orelse {A} (x: option A) y :=
-  match x with
-  | Some x => x
-  | None => y
-  end.
-Notation "x 'orelse' y" := (orelse x y) (at level 10).
+Notation "m <&> f" := (fmap f m) (at level 61, left associativity).
+Notation "'return' x " := (mret x) (at level 10000).
+Notation "x 'orelse' y" := (default y x) (at level 10).
 
 Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
   match l with
@@ -23,24 +19,11 @@ Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
   end.
 Definition mapi {A B} := @_mapi A B nil 0.
 
-Notation "\ x , y" := (fun x => y) (at level 100, x pattern, right associativity, format "\ x ,  y").
-Notation "\ x : t , y" := (fun x : t => y) (at level 100, x pattern, right associativity, format "\ x : t ,  y").
-
-Definition maybe_bind {A B} o (f: A -> option B) :=
-  match o with
-  | None => None
-  | Some x => f x
-  end.
-Infix ">>=" := maybe_bind (at level 100).
-Definition maybe_binds {A B} o (f:A->B) := maybe_bind o (\x, Some (f x)).
-Infix ">>=s" := maybe_binds (at level 100).
-Definition maybe_op {A B C} (op: A -> B -> C) x y := x >>= \x, y >>= \y, Some (op x y).
+Definition maybe_op {A B C} (op: A -> B -> C) x y := x ≫= λ x, y ≫= λ y, Some (op x y).
 Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
 Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).
 
-(* extract as List.length *)
 Definition len {A} (l:list A) := of_nat (List.length l).
-
 
 Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
   if (n =? 0)

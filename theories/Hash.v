@@ -50,7 +50,7 @@ Section Hashing.
     end.
   Definition hash_func h :=
     match h with
-    | H_UBFX lsb width => \v, (v >> lsb) mod (1 << width)
+    | H_UBFX lsb width => λ v, (v >> lsb) mod (1 << width)
     end.
   Definition hash_code h r :=
     match h with
@@ -73,7 +73,7 @@ Section Hashing.
          then Some (H_UBFX lsb width)
          else find_ubfx_hash' width (lsb-1) D D'.
   Proof. lia. Defined.
-  Function find_ubfx_hash width D D' {measure (\width, to_nat (33 - width)) width} :=
+  Function find_ubfx_hash width D D' {measure (λ width, to_nat (33 - width)) width} :=
     if (32 <=? width) || (width <? 0) then None
     else match find_ubfx_hash' width 32 D D' with
          | Some h => Some h
@@ -117,8 +117,8 @@ Section Table.
   Proof. all: lia. Defined.
   Definition list_of_entries entries sz default := _list_of_entries entries nil sz default.
   Definition compute_table_m h ai D D' :=
-    let entries := (map (\(i, i'), (hash_func h (4*i), 4*i')) (combine D D')) in
-    let entries' := (map (\i', (hash_func h (4*i'), 4*i')) D') in
+    let entries := (map (λ '(i, i'), (hash_func h (4*i), 4*i')) (combine D D')) in
+    let entries' := (map (λ i', (hash_func h (4*i'), 4*i')) D') in
     let all_entries := sort_uniq (entries++entries') in
     list_of_entries all_entries (hash_size h) (4*ai).
 

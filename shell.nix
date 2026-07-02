@@ -43,6 +43,7 @@
   coq-libs = with pkgs.coqPackages_8_20; [
     rocq-picinae
     coq-record-update
+    stdpp
   ];
   ocaml-libs = with pkgs.ocamlPackages; [
     coq-primitives

@@ -1,6 +1,6 @@
 (coq.extraction
  (prelude extraction)
- (theories Rewriter RecordUpdate Ltac2)
+ (theories Rewriter RecordUpdate Ltac2 stdpp)
  (extracted_modules Rewriter))
 
 (library

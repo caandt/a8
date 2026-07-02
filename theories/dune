@@ -1,4 +1,4 @@
 (coq.theory
  (name Rewriter)
- (theories Picinae RecordUpdate Ltac2)
+ (theories Picinae RecordUpdate Ltac2 stdpp)
  (package a8))

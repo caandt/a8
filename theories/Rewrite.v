@@ -127,37 +127,34 @@ Section InstRewriter.
 End InstRewriter.
 
 Definition decode_isns code bi :=
-  mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code.
+  mapi (λ i n, {| i := bi + i; n := n; t := decode n |}) code.
 Definition compute_idxs isns bi' :=
   let lens := map len_inst isns in
   csum bi' lens.
 Definition compute_rel idxs bi :=
   let ei := bi + PArray.length idxs - 1 in
-  \x, if (bi <=? x) && (x <? ei)
-      then PArray.get idxs (x - bi)
-      else x.
+  λ x, if (bi <=? x) && (x <? ei)
+       then PArray.get idxs (x - bi)
+       else x.
 Definition compute_tables rel ai bti dsets :=
-  maybe_map (\D,
+  maybe_map (λ D,
     let D' := map rel D in
-    Hash.find_hash D D' >>=s \h,
+    Hash.find_hash D D' <&> λ h,
     (h, Hash.compute_table_a h ai D D')
-  ) dsets >>=s \l,
-    let lens := map (\x, len (snd x)) l in
+  ) dsets <&> λ l,
+    let lens := map (λ x, len (snd x)) l in
     combine l (list_of_array (csum bti lens)).
-Axiom pt : int -> unit.
-Extract Constant pt => "(fun x -> Printf.printf ""%Lx\n"" (Uint63.to_int64 x))".
+
 Definition global_data code bi bi' pol dsets abtlen :=
   let isns := decode_isns code bi in
   let idxs := compute_idxs isns bi' in
   let rel := compute_rel idxs bi in
   let ai := idxs.[PArray.length idxs - 1] in
-  let* _ := pt ai in
   let bti := ai + abtlen in
-  let* _ := pt bti in
-  compute_tables rel ai bti dsets >>=s \tc,
+  compute_tables rel ai bti dsets <&> λ tc,
   {| bi := bi; bi' := bi'; bti := bti; ai := ai;
     code := code; isns := isns; pol := pol; dsets := dsets;
     rel := rel; tc := tc; |}.
 Definition rw hook d :=
   maybe_map (rw_inst hook d) d.(isns).
-Definition null_rw := rw (\_,\_,\x,x).
+Definition null_rw := rw (λ _ _ x, x).

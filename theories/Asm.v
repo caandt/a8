@@ -33,20 +33,20 @@ Definition bounded x bw :=
   then Some (x land (1<<bw-1))
   else None.
 Definition Bcond src dst cond :=
-  bounded (dst - src) 19 >>=s \imm19, Encode.Bcond imm19 cond.
+  bounded (dst - src) 19 <&> λ imm19, Encode.Bcond imm19 cond.
 Definition B src dst :=
-  bounded (dst - src) 26 >>=s \imm26, Encode.B imm26.
+  bounded (dst - src) 26 <&> Encode.B.
 Definition BL src dst :=
-  bounded (dst - src) 26 >>=s \imm26, Encode.BL imm26.
+  bounded (dst - src) 26 <&> Encode.BL.
 Definition CBZ sf op src dst Rt :=
-  bounded (dst - src) 19 >>=s \imm19, Encode.CBZ sf op imm19 Rt.
+  bounded (dst - src) 19 <&> λ imm19, Encode.CBZ sf op imm19 Rt.
 Definition TBZ b5 op b40 src dst Rt :=
-  bounded (dst - src) 14 >>=s \imm14, Encode.TBZ b5 op b40 imm14 Rt.
+  bounded (dst - src) 14 <&> λ imm14, Encode.TBZ b5 op b40 imm14 Rt.
 Definition ADR imm Rd :=
-  Encode.ADR (imm[0,2]) (imm[2,21]) Rd.
+  Encode.ADR (imm`[0,2]) (imm`[2,21]) Rd.
 Definition ADRP imm Rd :=
-  Encode.ADRP (imm[0,2]) (imm[2,21]) Rd.
-Function b16s imm hw {measure (\x, to_nat (4 - x)) hw} :=
+  Encode.ADRP (imm`[0,2]) (imm`[2,21]) Rd.
+Function b16s imm hw {measure (λ x, to_nat (4 - x)) hw} :=
   if (hw <? 4)
   then let rest := b16s (imm >> 16) (succ hw) in
        if (imm land 0xffff =? 0)
@@ -70,15 +70,15 @@ Definition MOV imm Rd :=
   | nil => Encode.MOVZ 1 0 0 Rd::nil
   | (imm, sf)::t =>
       Encode.MOVZ 1 sf imm Rd
-      ::map_single (\(imm, sf), Encode.MOVK 1 sf imm Rd) t
+      ::map_single (λ '(imm, sf), Encode.MOVK 1 sf imm Rd) t
   end.
 Definition UBFX is64 Rd Rn lsb width :=
   Encode.UBFX (b2i is64) (b2i is64) lsb (lsb+width-1) Rn Rd.
 Definition LDR_r64 Xt Xn Xm :=
   Encode.LDR_r 3 Xm 3 1 Xn Xt.
 Definition STP_pre64 Xt1 Xt2 Xn imm :=
-  bounded (imm>>3) 7 >>=s \imm7, Encode.LDP_STP 2 1 0 imm7 Xt2 Xn Xt1.
+  bounded (imm>>3) 7 <&> λ imm7, Encode.LDP_STP 2 1 0 imm7 Xt2 Xn Xt1.
 Definition LDP_post64 Xt1 Xt2 Xn imm :=
-  bounded (imm>>3) 7 >>=s \imm7, Encode.LDP_STP 2 0 1 imm7 Xt2 Xn Xt1.
+  bounded (imm>>3) 7 <&> λ imm7, Encode.LDP_STP 2 0 1 imm7 Xt2 Xn Xt1.
 Definition PUSH2 Xt1 Xt2 := STP_pre64 Xt1 Xt2 31 (-0x10) orelse 0.
 Definition POP2 Xt1 Xt2 := LDP_post64 Xt1 Xt2 31 (0x10) orelse 0.
