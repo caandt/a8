@@ -111,11 +111,11 @@ Proof.
   unfold _sllength in *. simpl. rewrite fold_add.
   rewrite IHx. rewrite length_app. rewrite <-length_spec. lia.
 Qed.
-Lemma list_splice:
-  forall sl1 i sl2, LO (slsplice sl1 i sl2) =
-    firstn (to_nat i) (LO sl1)++LO sl2++skipn (to_nat (i + sllength sl2)) (LO sl1).
-Proof.
-  intros. destruct sl1, sl2. unfold slsplice, sllength, slsub, list_of_strl. simpl. clear f f0.
+(* Lemma list_splice: *)
+(*   forall sl1 i sl2, LO (slsplice sl1 i sl2) = *)
+(*     firstn (to_nat i) (LO sl1)++LO sl2++skipn (to_nat (i + sllength sl2)) (LO sl1). *)
+(* Proof. *)
+(*   intros. destruct sl1, sl2. unfold slsplice, sllength, slsub, list_of_strl. simpl. clear f f0. *)
   
 
 Lemma equiv_get:

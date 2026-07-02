@@ -60,20 +60,8 @@ let main input output pol bi' bti ai abort =
 
   let d = In_channel.with_open_bin input In_channel.input_all in
   let d = [Pstring.unsafe_of_string d] in
-  let* elf2 = CFI.Rewriter.rw_elf d pol dsets, "error rewriting" in
-  Ok (Out_channel.with_open_bin "/tmp/wtf" (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string elf2)))
-  (**)
-  (* let* (code', tbls), rel = CFI.Rewriter.rw debug_hook pol dsets code bi bi' bti ai, "Error rewriting code" in *)
-  (* Packager.set_nx elf; *)
-  (* let entry' = (Packager.get_entrypoint elf |> lsr2 |> rel |> lsl2) in *)
-  (* Packager.set_entrypoint elf entry'; *)
-  (* let* _ = Packager.add_segment elf (List.concat code') (lsl2 bi'), "Error adding code segment" in *)
-  (* let* _ = Packager.add_segment elf (List.concat tbls |> List.concat_map (fun x -> [Uint63.l_and x (Uint63.of_int 0xffff_ffff); Uint63.l_sr x (Uint63.of_int 32)])) (lsl2 bti), "Error adding table segment" in *)
-  (* let* _ = Packager.add_segment_str elf abort (lsl2 ai), "Error adding abort segment" in *)
-  (* Packager.update_symbols elf rel; *)
-  (* Packager.save_and_close elf output; *)
-  (* Printf.printf "Wrote %s\n" output; *)
-
+  let* elf2 = CFI.Rewriter.rw_elf d pol dsets [Pstring.unsafe_of_string abort], "error rewriting" in
+  Ok (Out_channel.with_open_bin output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string elf2)))
 
 let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:(input ^ "_rw") in

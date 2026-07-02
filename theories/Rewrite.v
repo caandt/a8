@@ -3,6 +3,11 @@ Require Hash Decode Asm.
 Import Decode(ityp(..),decode).
 Import ListNotations.
 
+Structure i_data := {
+  i: int;
+  n: int;
+  t: ityp;
+}.
 Structure data := {
   (* the base index of the original text segment *)
   bi: int;
@@ -15,6 +20,7 @@ Structure data := {
 
   (* the original text segment *)
   code: list int;
+  isns: list i_data;
 
   (* the list of all sets of permitted destination indices *)
   dsets: list (list int);
@@ -26,11 +32,6 @@ Structure data := {
 
   (* a mapping from original indices to new indices *)
   rel: int -> int;
-}.
-Structure i_data := {
-  i: int;
-  n: int;
-  t: ityp;
 }.
 
 Section InstRewriter.
@@ -125,13 +126,13 @@ Section InstRewriter.
     end.
 End InstRewriter.
 
-Definition compute_rel (isns: list i_data) (bi bi': int) :=
-  let* _ := print_endline "compute_rel: start" in
+Definition decode_isns code bi :=
+  mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code.
+Definition compute_idxs isns bi' :=
   let lens := map len_inst isns in
-  let* _ := print_endline "compute_rel: finished map len" in
-  let idxs := csum bi' lens in
-  let* _ := print_endline "compute_rel: finished csum" in
-  let ei := bi + len isns in
+  csum bi' lens.
+Definition compute_rel idxs bi :=
+  let ei := bi + PArray.length idxs - 1 in
   \x, if (bi <=? x) && (x <? ei)
       then PArray.get idxs (x - bi)
       else x.
@@ -143,18 +144,20 @@ Definition compute_tables rel ai bti dsets :=
   ) dsets >>=s \l,
     let lens := map (\x, len (snd x)) l in
     combine l (list_of_array (csum bti lens)).
-Definition rw hook pol dsets code bi bi' bti ai :=
-  let* _ := print_endline "rw: start" in
-  let isns := mapi (\i, \n, {| i := bi + i; n := n; t := decode n |}) code in
-  let* _ := print_endline "rw: finished mapi isns" in
-  let rel := compute_rel isns bi bi' in
-  let* _ := print_endline "rw: finished rel" in
-  compute_tables rel ai bti dsets >>= \tc,
-  let* _ := print_endline "rw: finished tables" in
-  let d := {| bi := bi; bi' := bi'; bti := bti; ai := ai; code := code;
-    pol := pol; dsets := dsets; rel := rel; tc := tc; |} in
-  maybe_map (rw_inst hook d) isns >>=s \code',
-  let* _ := print_endline "rw: finished inst rw" in
-  let tbls := map (\(_,t,_),t) tc in
-  (code', tbls, rel).
+Axiom pt : int -> unit.
+Extract Constant pt => "(fun x -> Printf.printf ""%Lx\n"" (Uint63.to_int64 x))".
+Definition global_data code bi bi' pol dsets abtlen :=
+  let isns := decode_isns code bi in
+  let idxs := compute_idxs isns bi' in
+  let rel := compute_rel idxs bi in
+  let ai := idxs.[PArray.length idxs - 1] in
+  let* _ := pt ai in
+  let bti := ai + abtlen in
+  let* _ := pt bti in
+  compute_tables rel ai bti dsets >>=s \tc,
+  {| bi := bi; bi' := bi'; bti := bti; ai := ai;
+    code := code; isns := isns; pol := pol; dsets := dsets;
+    rel := rel; tc := tc; |}.
+Definition rw hook d :=
+  maybe_map (rw_inst hook d) d.(isns).
 Definition null_rw := rw (\_,\_,\x,x).

@@ -75,10 +75,10 @@ Extract Constant print_endline => "(fun x -> print_endline (Pstring.to_string x)
 
 Definition csum base lst :=
   let len := len lst in
-  let arr := PArray.make len 0 in
+  let arr := PArray.make (len+1) 0 in
   let f '(a, b, i) x := (a.[i<-b], b+x, i+1) in
-  let '(res, _, _) := fold_left f lst (arr, base, 0) in
-  res.
+  let '(res, b, i) := fold_left f lst (arr, base, 0) in
+  res.[i<-b].
 Fixpoint csum_fix base lst :=
   match lst with
   | nil => nil
