@@ -1,10 +1,12 @@
 Require Import Util PString Lia Strl Rewrite.
 From RecordUpdate Require Import RecordUpdate.
 
-Definition getu8 := slget.
+Notation getu8 := slget.
 Definition getu16 s i := (getu8 s i) + (getu8 s (i+1)) << 8.
 Definition getu32 s i := (getu16 s i) + (getu16 s (i+2)) << 16.
-Definition getu64 s i := if Uint63.bit (slget s (i+7)) 7 then None else Some ((getu32 s i) + (getu32 s (i+4)) << 32).
+Definition getu64 s i :=
+  assert negb (bit (getu8 s (i+7)) 7);
+  return (getu32 s i) + (getu32 s (i+4)) << 32.
 Definition u8 i := i land 0xff::nil.
 Definition u16 i :=  u8 i ++  u8 (i >> 8).
 Definition u32 i := u16 i ++ u16 (i >> 16).
@@ -13,6 +15,10 @@ Definition u64 i := u32 i ++ u32 (i >> 32).
 Definition ELFMAG := 0x464c457f.
 Definition ELFCLASS64 := 2.
 Definition EV_CURRENT := 1.
+Definition PT_NULL := 0.
+Definition PT_LOAD := 1.
+Definition PT_NOTE := 4.
+Definition PFLAG_RX := 5.
 
 Record Eident := {
   ei_mag: int;
@@ -53,6 +59,7 @@ Record ELF := {
   phdrs: list Phdr;
   data: list string;
 }.
+
 Definition parse_eident s :=
   let ei_mag := getu32 s 0 in
   let ei_class := getu8 s 4 in
@@ -60,14 +67,17 @@ Definition parse_eident s :=
   let ei_version := getu8 s 6 in
   let ei_osabi := getu8 s 7 in
   let ei_abiversion := getu8 s 8 in
-  if (ei_mag =? ELFMAG) && (ei_class =? ELFCLASS64) && (ei_version =? EV_CURRENT) then Some {|
+  assert ei_mag =? ELFMAG;
+  assert ei_class =? ELFCLASS64;
+  assert ei_version =? EV_CURRENT;
+  return {|
     ei_mag := ei_mag;
     ei_class := ei_class;
     ei_data := ei_data;
     ei_version := ei_version;
     ei_osabi := ei_osabi;
-    ei_abiversion := ei_abiversion; |}
-  else None.
+    ei_abiversion := ei_abiversion;
+  |}.
 Definition parse_ehdr s :=
   e_ident ← parse_eident s;
   let e_type := getu16 s 16 in
@@ -130,14 +140,10 @@ Definition parse_phdr s ehdr :=
   if (n =? 0xffff) then None else
   maybe_map (parse_phdr_at s) (phdr_offsets ehdr.(e_phoff) n).
 Definition parse_elf data :=
-  parse_ehdr data ≫= λ ehdr,
-  parse_phdr data ehdr <&> λ phdrs,
-  {| ehdr := ehdr; phdrs := phdrs; data := data |}.
+  ehdr ← parse_ehdr data;
+  phdrs ← parse_phdr data ehdr;
+  return {| ehdr := ehdr; phdrs := phdrs; data := data |}.
 
-Definition PT_NULL := 0.
-Definition PT_LOAD := 1.
-Definition PT_NOTE := 4.
-Definition PFLAG_RX := 5.
 Fixpoint findn {A} (f:A -> bool) l n :=
   match l with | nil => None | a::t => if (f a) then Some n else findn f t (n+1) end.
 Definition is_txt_seg p := (p.(p_type) =? PT_LOAD) && (bit p.(p_flags) 0).
@@ -150,7 +156,7 @@ Definition txt_seg elf := find is_txt_seg elf.(phdrs).
 Definition load_seg offset vaddr content :=
   Build_Phdr PT_LOAD PFLAG_RX offset vaddr vaddr (sllength content) (sllength content) 0x1000.
 Definition phdr_data p :=
-  (map of_list (
+  map of_list (
     u32 p.(p_type)::
     u32 p.(p_flags)::
     u64 p.(p_offset)::
@@ -159,12 +165,9 @@ Definition phdr_data p :=
     u64 p.(p_filesz)::
     u64 p.(p_memsz)::
     u64 p.(p_align)::nil
-  )).
+  ).
 
-Definition append_data elf d :=
-  set data (λ d', slcat d' d) elf.
 Definition listreplace {A} l n (x:A) := firstn n l++x::skipn (S n) l.
-Infix "++" := slcat.
 Definition replace_phdr elf phdr i :=
   let phdr_offset := elf.(ehdr).(e_phoff) + 56 * i in
   elf <| phdrs ::= λ p, listreplace p (to_nat i) phdr |>
@@ -173,14 +176,14 @@ Definition map_phdrs (f: Phdr -> option Phdr) elf :=
   let g '(e,i) p := match f p with None => (e,i+1) | Some p => (replace_phdr e p i, i+1) end in
   fst (fold_left g elf.(phdrs) (elf, 0)).
 Definition with_load_seg elf content vaddr :=
-  i ← replaceable_seg elf.(phdrs);
+  idx ← replaceable_seg elf.(phdrs);
   let padding := (0x1000 - sllength elf.(data) land 0xfff) land 0xfff in
   let offset := sllength elf.(data) + padding in
-  let elf := replace_phdr elf (load_seg offset vaddr content) i in
-  return append_data elf (make padding 0::content).
+  let elf := replace_phdr elf (load_seg offset vaddr content) idx in
+  return elf <| data ::= λ d, d ++ (make padding 0::content) |>.
 Definition set_nx := map_phdrs (λ p,
-  if is_txt_seg p then Some (p <| p_flags ::= Uint63.pred |>)
-  else None
+  assert is_txt_seg p;
+  return p <| p_flags ::= Uint63.pred |>
 ).
 Definition set_entrypoint elf entry :=
   elf <| ehdr; e_entry := entry |>
@@ -202,8 +205,7 @@ Definition rw_elf bytes pol dsets abort :=
   let bi' := get_page_after elf in
   d ← global_data (to_words code) bi bi' pol dsets (sllength abort >> 2);
   code' ← null_rw d;
-  let content := (of_chunks32 code' ++ abort ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)))%list in
+  let content := of_chunks32 code' ++ abort ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)) in
   let elf := set_nx elf in
   let elf := set_entrypoint elf (d.(rel) (elf.(ehdr).(e_entry) >> 2) << 2) in
-  let content := content in
   with_load_seg elf content (bi'<<2) <&> data.

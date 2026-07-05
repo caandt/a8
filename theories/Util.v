@@ -10,6 +10,8 @@ Notation "n `[ b ]" := (xb n b%uint63 (b%uint63 + 1)) (at level 30, format "n `[
 
 Notation "m <&> f" := (fmap f m) (at level 61, left associativity).
 Notation "'return' x " := (mret x) (at level 10000).
+Definition assert (x:bool) : option unit := if x then Some tt else None.
+Notation "'assert' x ; f" := (_ ← assert x; f) (at level 100).
 Notation "x 'orelse' y" := (default y x) (at level 10).
 
 Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
