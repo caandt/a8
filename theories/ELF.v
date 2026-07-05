@@ -18,7 +18,7 @@ Definition EV_CURRENT := 1.
 Definition PT_NULL := 0.
 Definition PT_LOAD := 1.
 Definition PT_NOTE := 4.
-Definition PFLAG_RX := 5.
+Definition PF_RX := 5.
 
 Record Eident := {
   ei_mag: int;
@@ -89,6 +89,7 @@ Definition parse_ehdr s :=
   let e_flags := getu32 s 48 in
   let e_ehsize := getu16 s 52 in
   let e_phentsize := getu16 s 54 in
+  assert e_phentsize =? 56;
   let e_phnum := getu16 s 56 in
   let e_shentsize := getu16 s 58 in
   let e_shnum := getu16 s 60 in
@@ -137,7 +138,7 @@ Definition of_chunks32 (lli: list (list int)) := map (λ x, of_list (List.concat
 Definition of_chunks64 (lli: list (list int)) := flat_map (λ x, (map (λ y, of_list (u64 y)) x)) lli.
 Definition parse_phdr s ehdr :=
   let n := ehdr.(e_phnum) in
-  if (n =? 0xffff) then None else
+  assert negb (n =? 0xffff);
   maybe_map (parse_phdr_at s) (phdr_offsets ehdr.(e_phoff) n).
 Definition parse_elf data :=
   ehdr ← parse_ehdr data;
@@ -147,6 +148,7 @@ Definition parse_elf data :=
 Fixpoint findn {A} (f:A -> bool) l n :=
   match l with | nil => None | a::t => if (f a) then Some n else findn f t (n+1) end.
 Definition is_txt_seg p := (p.(p_type) =? PT_LOAD) && (bit p.(p_flags) 0).
+
 Definition replaceable_seg phdrs :=
   match findn (λ x, x.(p_type) =? PT_NULL) phdrs 0 with
   | None => (findn (λ x, x.(p_type) =? PT_NOTE) phdrs 0)
@@ -154,7 +156,7 @@ Definition replaceable_seg phdrs :=
   end.
 Definition txt_seg elf := find is_txt_seg elf.(phdrs).
 Definition load_seg offset vaddr content :=
-  Build_Phdr PT_LOAD PFLAG_RX offset vaddr vaddr (sllength content) (sllength content) 0x1000.
+  Build_Phdr PT_LOAD PF_RX offset vaddr vaddr (sllength content) (sllength content) 0x1000.
 Definition phdr_data p :=
   map of_list (
     u32 p.(p_type)::
@@ -180,7 +182,7 @@ Definition with_load_seg elf content vaddr :=
   let padding := (0x1000 - sllength elf.(data) land 0xfff) land 0xfff in
   let offset := sllength elf.(data) + padding in
   let elf := replace_phdr elf (load_seg offset vaddr content) idx in
-  return elf <| data ::= λ d, d ++ (make padding 0::content) |>.
+  return elf <| data ::= λ d, slcat d (make padding 0::content) |>.
 Definition set_nx := map_phdrs (λ p,
   assert is_txt_seg p;
   return p <| p_flags ::= Uint63.pred |>
@@ -188,17 +190,109 @@ Definition set_nx := map_phdrs (λ p,
 Definition set_entrypoint elf entry :=
   elf <| ehdr; e_entry := entry |>
       <| data ::= λ d, slsplice d 24 (of_list (u64 entry)::nil) |>.
-Definition phdr_contenti elf i :=
-  phdr ← nth_error elf.(phdrs) (to_nat i);
-  return slsub elf.(data) phdr.(p_offset) phdr.(p_filesz).
 Definition get_page_after elf :=
   let f p := p.(p_vaddr) + p.(p_memsz) in
   let m := fold_left Uint63.max (map f elf.(phdrs)) 0 in
   ((m >> 12) + 2) << 10.
 Definition phdr_content elf phdr :=
   slsub elf.(data) phdr.(p_offset) phdr.(p_filesz).
-Definition rw_elf bytes pol dsets abort :=
-  elf ← parse_elf bytes;
+Definition add_code bin code addr :=
+  elf ← parse_elf bin;
+  assert (64 <? elf.(ehdr).(e_phoff));
+  with_load_seg elf code addr <&> data.
+
+Ltac unfold_first x H :=
+  match x with
+  | ?a _ => unfold_first a H
+  | _ => unfold x in H; simpl in H
+  end.
+Ltac so H :=
+  match type of H with
+  | (assert _; _) = Some _ =>
+      let A := fresh "A" in
+      let B := fresh "B" in
+      apply bind_Some in H as (A&B&H);
+      destruct (_:bool) eqn:? in B; try easy; clear A B
+  | _ ≫= _ = Some _ => apply bind_Some in H as (?&?&H)
+  | _ <&> _ = Some _ => apply fmap_Some in H as (?&?&H)
+  | (return _) = Some _ => injection H as H
+  | Some _ = Some _ => injection H as H
+  | (?a = Some _) => unfold_first a H
+  end.
+Ltac sog :=
+  match goal with
+  | |- (assert ?E; _) = Some _ => replace E with true; simpl
+  | |- (return _) = Some _ => f_equal
+  | |- (?E <&> _) = Some _ =>
+      let H := fresh "H" in eenough (E = Some _) as H; rewrite ?H; simpl
+  | |- (?E ≫= _) = Some _ =>
+      let H := fresh "H" in eenough (E = Some _) as H; rewrite ?H; simpl
+  end.
+Lemma parse_elf_data:
+  forall {bin elf} (E: parse_elf bin = Some elf),
+    data elf = bin.
+Proof.
+  intros. repeat so E. now subst.
+Qed.
+Lemma eident_same {bin eident bin'}
+  (E: parse_eident bin = Some eident)
+  (S: slsub bin 0 64 ≡ slsub bin' 0 64):
+  parse_eident bin' = Some eident.
+Proof.
+  unfold parse_eident in *.
+  repeat so E. repeat sog; subst;
+  f_equal; unfold getu32, getu16; simpl;
+    repeat match goal with
+           | |- context [getu8 _ ?A] =>
+               lazymatch A with
+               | 0 + _ => fail
+               | _ => replace A with (0 + A) by lia
+               end
+           end;
+    rewrite !(sub_equiv bin' bin 0 64); auto; lia.
+Qed.
+Lemma ehdr_same {bin ehdr bin'}
+  (E: parse_ehdr bin = Some ehdr)
+  (S: slsub bin 0 64 ≡ slsub bin' 0 64):
+  parse_ehdr bin' = Some ehdr.
+Proof.
+  unfold parse_ehdr in *.
+  repeat so E. rewrite <-E. rewrite (eident_same H S). repeat sog;
+  f_equal; unfold getu64, getu32, getu16; simpl;
+    repeat match goal with
+           | |- context [getu8 _ ?A] =>
+               lazymatch A with
+               | 0 + _ => fail
+               | _ => replace A with (0 + A) by lia
+               end
+           end;
+    rewrite !(sub_equiv bin' bin 0 64); auto; lia.
+Qed.
+
+Theorem add_code_correct:
+  forall bin bin' content addr
+    (B: add_code bin content addr = Some bin'),
+  match parse_elf bin' with
+  | Some elf => Exists (λ s,
+      s.(p_type) = PT_LOAD
+      ∧ s.(p_flags) = PF_RX
+      ∧ s.(p_vaddr) = addr
+      ∧ slsub bin' s.(p_offset) s.(p_filesz) = content) elf.(phdrs)
+  | None => False
+  end.
+Proof.
+  intros.
+  repeat so B.
+  repeat so H0.
+  unfold parse_elf.
+  rewrite <-H0 in B. clear H0.
+  rewrite (parse_elf_data H) in B. simpl in B.
+  so H. so H.
+  epose proof (ehdr_same H0 _). rewrite H2. simpl.
+Admitted.
+
+Definition rw_elf bin pol dsets abort :=
+  elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
   let bi := ts.(p_vaddr) >> 2 in
