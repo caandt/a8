@@ -33,6 +33,14 @@ Fixpoint sldrop sl n :=
       else
         sldrop t (n - length a)
   end.
+Fixpoint sllt sl n :=
+  if (n =? 0) then false else
+  match sl with
+  | nil => true
+  | a::t =>
+      if (n <? length a) then false
+      else sllt t (n - length a)
+  end.
 Definition slsplice sl i sl2 :=
   slcat (slcat (slsub sl 0 i) sl2) (sldrop sl (i + sllength sl2)).
 Definition list_of_strl sl := List.concat (map to_list sl).
@@ -114,7 +122,7 @@ Lemma equiv_get:
 Proof.
   intros. now rewrite !list_get, H.
 Qed.
-Lemma sub_equiv:
+Lemma sub_equiv_get:
   forall sl1 sl2 i j, slsub sl1 i j ≡ slsub sl2 i j ->
   (to_Z i + to_Z j < wB)%Z ->
   forall k, k <? j = true ->
@@ -127,16 +135,44 @@ Proof.
   rewrite !nth_firstn in H.
   now replace _ with true in H by lia.
 Qed.
+Definition get_before:
+  forall sl i j, i <? j = true -> slget sl i = slget (slsub sl 0 j) i.
+Proof.
+  intros. replace i with (0 + i). erewrite sub_equiv_get. easy.
+  now rewrite !list_sub, !skipn_O, firstn_firstn, Nat.min_id.
+  all: lia.
+Qed.
+Definition get_sub:
+  forall sl i j k, k <=? i = true -> i - k <? j = true -> slget sl i = slget (slsub sl k j) (i - k).
+Proof.
+  intros. rewrite !list_get, list_sub.
+  rewrite nth_firstn. replace (_ <? _)%nat with true by lia.
+  rewrite nth_skipn. f_equal. lia.
+Qed.
 Lemma splice_before:
-  forall sl1 sl2 i, i <? sllength sl1 = true -> slsub (slsplice sl1 i sl2) 0 i ≡ slsub sl1 0 i.
+  forall sl1 sl2 i j, i <? sllength sl1 = true -> i <? j = true ->
+  slsub (slsplice sl1 j sl2) 0 i ≡ slsub sl1 0 i.
 Proof.
   intros. unfold slsplice.
   rewrite !list_sub, !list_cat, !list_sub, !skipn_O, <-app_assoc.
-  rewrite firstn_app, length_firstn, firstn_firstn, Nat.min_id.
-  rewrite list_length in H.
-  replace (_ - _)%nat with O by lia.
-  now rewrite firstn_O, app_nil_r.
+  rewrite firstn_app, length_firstn, firstn_firstn.
+  replace (_ - _)%nat with O by (rewrite list_length in H; lia).
+  rewrite firstn_O, app_nil_r. f_equal. lia.
 Qed.
+Lemma sub_splice:
+  forall sl1 sl2 i j,
+    i <? sllength sl1 = true -> 
+    to_Z j = Zlength (LO sl2) ->
+    slsub (slsplice sl1 i sl2) i j ≡ sl2.
+Proof.
+  intros. rewrite list_sub, list_splice.
+  rewrite skipn_app, length_firstn, skipn_firstn_comm, Nat.sub_diag, firstn_O, app_nil_l.
+  rewrite list_length in H. replace (_-_)%nat with O by lia.
+  rewrite skipn_O, firstn_app. rewrite Zlength_correct in H0.
+  replace (_-_)%nat with O by lia. rewrite firstn_O, app_nil_r, firstn_all2.
+  easy. lia.
+Qed.
+
 Lemma equiv_sub:
   forall sl1 sl2 i j, sl1 ≡ sl2 -> slsub sl1 i j ≡ slsub sl2 i j.
 Proof.
@@ -164,3 +200,57 @@ Proof.
   now rewrite firstn_O, app_nil_r.
   rewrite length_skipn. rewrite list_length in H. lia.
 Qed.
+Lemma sub_cat1:
+  forall sl1 sl2 i j,
+  (to_Z i + to_Z j <= Zlength (LO sl1))%Z ->
+  slsub (slcat sl1 sl2) i j ≡ slsub sl1 i j.
+Proof.
+  intros. rewrite !list_sub, list_cat.
+  rewrite skipn_app, firstn_app.
+  replace (_ - _)%nat with O.
+  now rewrite firstn_O, app_nil_r.
+  rewrite length_skipn. rewrite Zlength_correct in H. lia.
+Qed.
+Lemma sub_cat2:
+  forall sl1 sl2 i j,
+  (Zlength (LO sl1) <= to_Z i)%Z ->
+  slsub (slcat sl1 sl2) i j ≡ slsub sl2 (i - sllength sl1) j.
+Proof.
+  intros. rewrite !list_sub, list_cat.
+  rewrite Zlength_correct in H.
+  rewrite skipn_app, skipn_all2, app_nil_l by lia.
+  repeat f_equal. rewrite list_length. lia.
+Qed.
+Lemma slltl:
+  forall sl n, sllt sl n = true <-> (Zlength (LO sl) < to_Z n)%Z.
+Proof.
+  setoid_rewrite Zlength_correct.
+  induction sl; intros; simpl.
+    destruct eqb eqn:E; lia.
+    destruct eqb eqn:E. lia.
+      unfold list_of_strl in *.
+      rewrite map_cons, concat_cons, length_app, <-length_spec.
+      destruct ltb eqn:L. lia.
+        split; intro.
+          apply IHsl in H. lia.
+          apply IHsl. lia.
+Qed.
+Lemma length_splice:
+  forall sl1 i sl2, i + sllength sl2 <? sllength sl1 = true ->
+  (to_Z i + Zlength (LO sl2) < wB)%Z ->
+  sllength (slsplice sl1 i sl2) = sllength sl1.
+Proof.
+  intros. rewrite Zlength_correct, !list_length in *.
+  rewrite list_splice, !length_app, length_firstn, length_skipn, !list_length in *. lia.
+Qed.
+Lemma length_splice':
+  forall sl1 i sl2, i + sllength sl2 <? sllength sl1 = true ->
+  (to_Z i + Zlength (LO sl2) < wB)%Z ->
+  List.length (LO (slsplice sl1 i sl2)) = List.length (LO sl1).
+Proof.
+  intros. rewrite Zlength_correct, !list_length in *.
+  rewrite list_splice, !length_app, length_firstn, length_skipn, !list_length in *. lia.
+Qed.
+Lemma equiv_trans:
+  forall sl1 sl2 sl3, sl1 ≡ sl2 -> sl2 ≡ sl3 -> sl1 ≡ sl3.
+Proof. intros. now rewrite H. Qed.

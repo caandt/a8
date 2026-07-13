@@ -44,6 +44,7 @@
     rocq-picinae
     coq-record-update
     stdpp
+    coqutil
   ];
   ocaml-libs = with pkgs.ocamlPackages; [
     coq-primitives
