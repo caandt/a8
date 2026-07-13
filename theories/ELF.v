@@ -101,7 +101,7 @@ Definition parse_ehdr bin :=
   let e_version := getu32 bin 20 in
   e_entry ← getu64 bin 24;
   e_phoff ← getu64 bin 32;
-  assert 64 <? e_phoff;
+  assert 64 <=? e_phoff;
   e_shoff ← getu64 bin 40;
   let e_flags := getu32 bin 48 in
   let e_ehsize := getu16 bin 52 in
