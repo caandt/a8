@@ -1,6 +1,6 @@
 (coq.extraction
  (prelude extraction)
- (theories Rewriter RecordUpdate Ltac2 stdpp)
+ (theories Rewriter RecordUpdate Ltac2 stdpp coqutil Picinae)
  (extracted_modules Rewriter))
 
 (library

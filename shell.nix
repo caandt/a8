@@ -21,14 +21,12 @@
   a64pkgs = pkgs.pkgsCross.aarch64-multiplatform;
   a64-cc = pkgs.symlinkJoin {
     name = "a64-cc";
-    paths = [a64pkgs.stdenv.cc.bintools a64pkgs.stdenv.cc];
-    nativeBuildInputs = [pkgs.makeWrapper];
+    paths = [a64pkgs.stdenv.cc];
     postBuild = ''
-      for bin in aarch64-unknown-linux-gnu-gcc aarch64-unknown-linux-gnu-g++; do
-        wrapProgram $out/bin/$bin \
-          --add-flags "-L${a64pkgs.glibc.static}/lib" \
-          --add-flags "-B${a64pkgs.glibc.static}/lib" \
-          --add-flags "-I${a64pkgs.glibc.static}/include"
+      mkdir -p $out/bin
+      for file in ${a64pkgs.stdenv.cc}/bin/*; do
+        filename=$(basename "$file")
+        ln -sf "$file" "$out/bin/a64-''\${filename#aarch64-unknown-linux-gnu-}"
       done
     '';
   };

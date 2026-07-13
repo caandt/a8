@@ -2,12 +2,12 @@
  (targets abort.bin)
  (action
   (progn
-   (run aarch64-unknown-linux-gnu-cc
+   (run a64-gcc
         -c -ffreestanding -fno-stack-protector -nostdlib
         %{dep:abort.c} -o a.o)
-   (run aarch64-unknown-linux-gnu-ld
+   (run a64-ld
         -T %{dep:link.ld} -nostdlib a.o -o a.elf)
-   (run aarch64-unknown-linux-gnu-objcopy
+   (run a64-objcopy
         -O binary -j .text -j .got -j .got.plt a.elf %{targets}))))
 
 (rule
