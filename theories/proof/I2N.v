@@ -1,14 +1,14 @@
+From Coq Require Import ZArith NArith Uint63 Lia ZifyUint63 ZifyN.
 From Picinae Require Import theory.
-Require Import ZArith NArith Uint63 Lia ZifyUint63 ZifyN.
 
 Open Scope uint63.
 
 Module notations.
-Notation toN a := (Z.to_N (to_Z a)).
-Notation ofN a := (of_Z (Z.of_N a)).
-Notation wN := (2 ^ N.of_nat size).
-Notation "% n" := (N.modulo n wN) (at level 1, format "% n") : N_scope.
-Notation "% z" := (Z.modulo z wB) (at level 1, format "% z") : Z_scope.
+  Notation toN a := (Z.to_N (to_Z a)).
+  Notation ofN a := (of_Z (Z.of_N a)).
+  Notation wN := (2 ^ N.of_nat size).
+  Notation "% n" := (N.modulo n wN) (at level 1, format "% n") : N_scope.
+  Notation "% z" := (Z.modulo z wB) (at level 1, format "% z") : Z_scope.
 End notations.
 Import notations.
 
@@ -109,7 +109,7 @@ Ltac nify :=
   | |- context[bit ?i ?j] => rewrite (inj_bit i j)
   | |- context[compare ?i ?j] => rewrite (inj_compare i j)
   end.
-Ltac zify :=
+Ltac izify :=
   repeat match goal with
   | |- @eq int _ _ => apply I2Z.inj
   | |- ?i <? ?j = true => apply I2Z.inj_lt
@@ -124,9 +124,16 @@ Ltac zify :=
   | |- context[to_Z (?i lor ?j)] => rewrite (I2Z.inj_lor i j)
   | |- context[to_Z (?i lxor ?j)] => rewrite (I2Z.inj_lxor i j)
   | |- context[bit ?i ?j] => rewrite (I2Z.inj_bit i j)
-  | |- context[to_Z 0xff] => change (to_Z 0xff) with (Z.ones 8)
-  | |- context[to_Z 0xffff] => change (to_Z 0xffff) with (Z.ones 16)
-  | |- context[to_Z 0xffffff] => change (to_Z 0xffffff) with (Z.ones 24)
-  | |- context[to_Z 0xffffffff] => change (to_Z 0xffffffff) with (Z.ones 32)
   (* | |- context[compare ?i ?j] => rewrite (I2Z.inj_compare i j) *)
-  end.
+end.
+Ltac change_ones :=
+  let rec loop n :=
+    match n with
+    | O => change (to_Z 0) with Z0
+    | S ?n' =>
+      let z := eval compute in (Z.of_nat n) in
+      let i := eval compute in (of_Z (Z.ones z)) in
+      change (to_Z i) with (Z.ones z);
+      loop n'
+    end in
+  loop 63%nat.
