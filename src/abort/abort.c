@@ -1,7 +1,24 @@
-#include <syscall.h>
-#define MSG "\n*** cfi abort ***\n"
+#include <sys/syscall.h>
+#include <sys/personality.h>
 
-asm("_start: b abort");
+#define WRITE(x) syscall(SYS_write, 1, (long)x, sizeof(x)-1)
+#define EXIT(x) syscall(SYS_exit, x, 0, 0)
+#define DIE(x) do { WRITE("a8 runtime: " x "\n"); EXIT(255); } while (0)
+#define EXECVE(path, argv, argc) syscall(SYS_execve, (long)path, argv, argc)
+#define PERSONALITY(x) syscall(SYS_personality, x, 0, 0)
+
+asm("b abort\n"
+    "b _start\n"
+    "real_entry: .fill 8\n"
+    "_start:\n"
+    "add x0, sp, #8\n"
+    "ldr x1, [sp]\n"
+    "add x1, x0, x1, lsl #3\n"
+    "add x1, x1, #8\n"
+    "bl disable_aslr\n"
+    "mov lr, #0\n"
+    "ldr x0, real_entry\n"
+    "br x0\n");
 
 long syscall(long num, long arg1, long arg2, long arg3) {
   register long x8 asm("x8") = num;
@@ -20,7 +37,17 @@ long syscall(long num, long arg1, long arg2, long arg3) {
 }
 
 void abort() {
-  syscall(SYS_write, 1, (long)MSG, sizeof(MSG)-1);
-  syscall(SYS_exit, 255, 0, 0);
+  DIE("CFI abort");
 }
 
+void disable_aslr(long argv, long envp) {
+  long p1 = PERSONALITY(0xffffffff);
+  long p2 = p1 | ADDR_NO_RANDOMIZE;
+  if (p1 != p2) {
+    if (PERSONALITY(p2) == -1) {
+      DIE("Could not change personality");
+    }
+    EXECVE("/proc/self/exe", argv, envp);
+    DIE("Could not re-exec program");
+  }
+}

@@ -314,11 +314,11 @@ Proof.
     erewrite (getu64_equiv _ (of_list (u64 _)::nil));
     [apply getu64_u64 | subst phdr; sub_phdr].
   subst. simpl.
-  remember (_ land _) as pad; remember (cat (splice _ _ _) _) as padded.
+  remember (padding _ _) as pad; remember (cat (splice _ _ _) _) as padded.
   assert (List.length (LO padded) = List.length (LO bin) + to_nat pad)%nat.
     subst padded. rewrite !lo_length, lo_cat, length_app, length_splice'.
     setoid_rewrite length_concat at 2. simpl. rewrite <-length_spec, make_length_spec. clear; lia.
-    subst. izify. change (to_Z 4095) with (Z.ones 12). clear; rewrite Z.land_ones; lia.
+    subst. unfold padding. simpl. izify. change_ones. clear; rewrite Z.land_ones; lia.
     rewrite lo_length, phdr_data_len. clear -IdxInBound; lia.
     rewrite Zlength_correct, phdr_data_len. pose proof (getu16_bound bin 56); lia.
   rewrite sub_cat2.
@@ -326,5 +326,5 @@ Proof.
   rewrite !lo_length. lia. rewrite lo_length, Zlength_correct, H1.
   izify. rewrite of_Z_spec, Z.add_mod_idemp_l, Z.mod_small. lia. split. lia.
   apply slltl in Maxlen. rewrite Zlength_correct in Maxlen. enough (pad <? 0x1000 = true). lia.
-  subst pad. izify. change (to_Z 4095) with (Z.ones 12). clear; rewrite Z.land_ones; lia. lia.
+  subst pad. unfold padding. simpl. izify. change_ones. clear; rewrite Z.land_ones; lia. lia.
 Qed.

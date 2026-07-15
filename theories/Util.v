@@ -71,6 +71,8 @@ Fixpoint csum_fix base lst :=
   end.
 
 Definition sext n w := asr (n << (63 - w)) (63 - w).
+Definition padding x b := (1 << b - x land (1 << b - 1)) land (1 << b - 1).
+Definition pad_to x b := x + padding x b.
 
 (* copy of map, to avoid using parmap extraction *)
 Fixpoint map_single {A B} (f:A->B) l :=

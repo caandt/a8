@@ -149,8 +149,8 @@ Definition global_data code bi bi' pol dsets abtlen :=
   let isns := decode_isns code bi in
   let idxs := compute_idxs isns bi' in
   let rel := compute_rel idxs bi in
-  let ai := idxs.[PArray.length idxs - 1] in
-  let bti := ai + abtlen in
+  let ai := pad_to idxs.[PArray.length idxs - 1] 10 in
+  let bti := pad_to (ai + abtlen) 10 in
   compute_tables rel ai bti dsets <&> λ tc,
   {| bi := bi; bi' := bi'; bti := bti; ai := ai;
     code := code; isns := isns; pol := pol; dsets := dsets;

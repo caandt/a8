@@ -184,7 +184,7 @@ Definition map_phdrs (f: Phdr -> option Phdr) elf :=
 Definition with_load_seg elf content vaddr :=
   idx ← replaceable_seg elf.(phdrs);
   assert elf.(ehdr).(e_phoff) + 56 * idx + 56 <? length elf.(data);
-  let padding := (0x1000 - length elf.(data) land 0xfff) land 0xfff in
+  let padding := padding (length elf.(data)) 12 in
   let offset := length elf.(data) + padding in
   let elf := replace_phdr elf (load_seg offset vaddr content) idx in
   return elf <| data ::= λ d, cat (cat d [make padding 0]) content |>.
@@ -215,7 +215,12 @@ Definition rw_elf bin pol dsets abort :=
   let bi' := get_page_after elf in
   d ← global_data (to_words code) bi bi' pol dsets (length abort >> 2);
   code' ← null_rw d;
-  let content := of_chunks32 code' ++ abort ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)) in
+  let entry := (d.(rel) (elf.(ehdr).(e_entry) >> 2) << 2) in
+  let abort := splice abort 8 [of_list (u64 entry)] in
+  let content := of_chunks32 code' in
+  let pad1 := padding (length content) 12 in
+  let pad2 := padding (length abort) 12 in
+  let content := content ++ [make pad1 0] ++ abort ++ [make pad2 0] ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)) in
   let elf := set_nx elf in
-  let elf := set_entrypoint elf (d.(rel) (elf.(ehdr).(e_entry) >> 2) << 2) in
+  let elf := set_entrypoint elf (d.(ai) << 2 + 4) in
   with_load_seg elf content (bi'<<2) <&> data.

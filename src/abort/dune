@@ -1,14 +1,18 @@
 (rule
- (targets abort.bin)
+ (targets abort.elf)
  (action
   (progn
    (run a64-gcc
         -c -ffreestanding -fno-stack-protector -nostdlib
         %{dep:abort.c} -o a.o)
    (run a64-ld
-        -T %{dep:link.ld} -nostdlib a.o -o a.elf)
-   (run a64-objcopy
-        -O binary -j .text -j .got -j .got.plt a.elf %{targets}))))
+        -T %{dep:link.ld} -nostdlib a.o -o %{targets}))))
+
+(rule
+ (targets abort.bin)
+ (action
+  (run a64-objcopy
+       -O binary -j .text -j .got -j .got.plt %{dep:abort.elf} %{targets})))
 
 (rule
  (target abort.ml)
