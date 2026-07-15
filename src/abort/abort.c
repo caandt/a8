@@ -20,7 +20,7 @@ asm("b abort\n"
     "ldr x0, real_entry\n"
     "br x0\n");
 
-long syscall(long num, long arg1, long arg2, long arg3) {
+inline long syscall(long num, long arg1, long arg2, long arg3) {
   register long x8 asm("x8") = num;
   register long x0 asm("x0") = arg1;
   register long x1 asm("x1") = arg2;
