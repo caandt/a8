@@ -87,6 +87,9 @@ Module I2Z. Section I2Z.
   Definition inj_lor := lor_spec' i j.
   Definition inj_lxor := lxor_spec' i j.
   Definition inj_bit := bitE i j.
+
+  Lemma inj_lt: (i <? j = true)%uint63 <-> x < y. Proof. lia. Qed.
+  Lemma inj_le: (i <=? j = true)%uint63 <-> x <= y. Proof. lia. Qed.
 End I2Z. End I2Z.
 
 Ltac nify :=
@@ -109,8 +112,8 @@ Ltac nify :=
 Ltac zify :=
   repeat match goal with
   | |- @eq int _ _ => apply I2Z.inj
-  (* | |- ?i <? ?j = true => apply inj_lt *)
-  (* | |- ?i <=? ?j = true => apply inj_le *)
+  | |- ?i <? ?j = true => apply I2Z.inj_lt
+  | |- ?i <=? ?j = true => apply I2Z.inj_le
   | |- context[to_Z (?i + ?j)] => rewrite (I2Z.inj_add i j)
   | |- context[to_Z (?i - ?j)] => rewrite (I2Z.inj_sub i j)
   | |- context[to_Z (?i * ?j)] => rewrite (I2Z.inj_mul i j)
