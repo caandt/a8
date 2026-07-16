@@ -43,9 +43,9 @@ Definition CBZ sf op src dst Rt :=
 Definition TBZ b5 op b40 src dst Rt :=
   bounded (dst - src) 14 <&> λ imm14, Encode.TBZ b5 op b40 imm14 Rt.
 Definition ADR imm Rd :=
-  Encode.ADR (imm`[0,2]) (imm`[2,21]) Rd.
+  Encode.ADR (imm:[0,2]) (imm:[2,21]) Rd.
 Definition ADRP imm Rd :=
-  Encode.ADRP (imm`[0,2]) (imm`[2,21]) Rd.
+  Encode.ADRP (imm:[0,2]) (imm:[2,21]) Rd.
 Function b16s imm hw {measure (λ x, to_nat (4 - x)) hw} :=
   if (hw <? 4)
   then let rest := b16s (imm >> 16) (succ hw) in
@@ -54,12 +54,6 @@ Function b16s imm hw {measure (λ x, to_nat (4 - x)) hw} :=
        else (imm land 0xffff, hw)::rest
   else nil.
 Proof. all: lia. Defined.
-Definition b16s' imm :=
-  (imm >> 48            )::
-  (imm >> 32 land 0xffff)::
-  (imm >> 16 land 0xffff)::
-  (imm       land 0xffff)::nil.
-
 Definition b16c imm :=
   max 1 (4 - (imm land 0x7fff_0000_0000_0000 =? 0)
   - (imm land 0xffff_0000_0000 =? 0)

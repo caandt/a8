@@ -15,6 +15,13 @@ let load filepath =
   let handle = Lief.parse filepath in
   if is_null handle then None else Some handle
 
+let load_mem data =
+  let arr = CArray.of_string data in
+  let ptr = coerce (ptr char) (ptr uint8_t) @@ CArray.start arr in
+  let len = CArray.length arr |> Size_t.of_int in
+  let handle = Lief.parse_mem ptr len in
+  if is_null handle then None else Some handle
+
 let get_text elf =
   let elements_ptr = allocate size_t (Size_t.of_int 0) in
   let va_ptr = allocate uint64_t (UInt64.of_int 0) in

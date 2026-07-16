@@ -10,6 +10,10 @@ ELFHandle* lief_parse(const char* filepath) {
     return LIEF::ELF::Parser::parse(filepath).release();
 }
 
+ELFHandle* lief_parse_mem(const uint8_t *data, size_t elements) {
+    return LIEF::ELF::Parser::parse(std::vector<uint8_t>(data, data + elements)).release();
+}
+
 const uint32_t* lief_get_text(ELFHandle* handle, size_t* out_elements, uint64_t* va) {
     auto bin = static_cast<LIEF::ELF::Binary*>(handle);
     for (LIEF::ELF::Segment& seg : bin->segments()) {

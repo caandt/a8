@@ -1,12 +1,13 @@
 Require Export Uint63 List Bool Recdef Lia ZifyUint63.
+Require Import Orders MSetRBT ZArith.
 From stdpp Require Export option.
 Require PArray PrimString.
 Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
 Open Scope uint63.
 
 Definition xb (n i j: int) := (n >> i) land (1 << (j - i) - 1).
-Notation "n `[ i , j ]" := (xb n i j) (at level 30, format "n `[ i ,  j ]").
-Notation "n `[ b ]" := (xb n b%uint63 (b%uint63 + 1)) (at level 30, format "n `[ b ]").
+Notation "n :[ i , j ]" := (xb n i j) (at level 30, format "n :[ i ,  j ]").
+Notation "n :[ b ]" := (xb n b%uint63 (b%uint63 + 1)) (at level 30, format "n :[ b ]").
 
 Notation "m <&> f" := (fmap f m) (at level 61, left associativity).
 Notation "'return' x " := (mret x) (at level 10000).
@@ -80,3 +81,32 @@ Fixpoint map_single {A B} (f:A->B) l :=
   | nil => nil
   | a::t => f a::map_single f t
   end.
+
+Global Instance int_eq_dec : EqDecision int.
+Proof. intros x y. destruct (x =? y) eqn:E. left. lia. right. lia. Defined.
+
+Module IntOT <: UsualOrderedType.
+  Definition t := int.
+  Definition eq := @eq int.
+  Definition eq_equiv := @eq_equivalence int.
+  Definition lt x y := (x <? y = true).
+  Definition lt_strorder : StrictOrder lt.
+  Proof.
+    unfold lt. split. intros x LT. lia.
+    intros x y z LT LT2. lia.
+  Defined.
+  Definition lt_compat : Proper (Logic.eq ==> Logic.eq ==> iff) lt.
+  Proof.
+    intros a b EQ x y EQ2. unfold lt. subst. lia.
+  Defined.
+  Definition compare := Uint63.compare.
+  Definition compare_spec : forall x y : t, CompareSpec (x = y) (lt x y) (lt y x) (compare x y).
+  Proof.
+    intros x y. unfold compare, lt.
+    rewrite Uint63.compare_spec.
+    destruct (Z.compare_spec (to_Z x) (to_Z y)); constructor; auto; lia.
+  Defined.
+  Definition eq_dec : forall x y : t, {x = y} + {x <> y}.
+  Proof. apply int_eq_dec. Defined.
+End IntOT.
+Module MSet := Make IntOT.

@@ -60,8 +60,13 @@ let main input output pol bi' bti ai abort =
 
   let d = In_channel.with_open_bin input In_channel.input_all in
   let d = [Pstring.unsafe_of_string d] in
-  let* elf2 = CFI.Rewriter.rw_elf d pol dsets [Pstring.unsafe_of_string abort], "error rewriting" in
-  Ok (Out_channel.with_open_bin output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string elf2)))
+  let* elf2, dat = CFI.Rewriter.rw_elf d pol dsets [Pstring.unsafe_of_string abort], "error rewriting" in
+
+  let* e = Packager.load_mem (String.concat "" (List.map Pstring.to_string elf2)), "Error reading input" in
+  Packager.update_symbols e dat.rel;
+  Ok (Packager.save_and_close e output)
+
+  (* Ok (Out_channel.with_open_bin output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string elf2))) *)
 
 let run input output pol bi' bti ai abort =
   let output = Option.value output ~default:(input ^ "_rw") in

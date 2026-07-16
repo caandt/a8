@@ -3,44 +3,6 @@ Require Asm.
 Require Import ZArith Orders Lia ZifyUint63 MSetRBT PArray.
 Import ListNotations.
 
-Module IntOT <: UsualOrderedType.
-  Definition t := int.
-  Definition eq := @eq int.
-  Definition eq_equiv := @eq_equivalence int.
-  Definition lt x y := (x <? y = true).
-  Definition lt_strorder : StrictOrder lt.
-  Proof.
-    unfold lt. split. intros x LT. lia.
-    intros x y z LT LT2. lia.
-  Defined.
-  Definition lt_compat : Proper (Logic.eq ==> Logic.eq ==> iff) lt.
-  Proof.
-    intros a b EQ x y EQ2. unfold lt. subst. lia.
-  Defined.
-  Definition compare := Uint63.compare.
-  Definition compare_spec : forall x y : t, CompareSpec (x = y) (lt x y) (lt y x) (compare x y).
-  Proof.
-    intros x y. unfold compare, lt.
-    rewrite Uint63.compare_spec.
-    destruct (Z.compare_spec (to_Z x) (to_Z y)); constructor; auto; lia.
-  Defined.
-  Definition eq_dec : forall x y : t, {x = y} + {x <> y}.
-  Proof.
-    intros x y. destruct (x =? y) eqn:E. left. lia. right. lia.
-  Defined.
-End IntOT.
-Module MSet := Make IntOT.
-Section HashTable.
-  Variable t: Type.
-  Variable In: int -> t -> Prop.
-  Definition Complete T (D: t) h (rel: int -> int) :=
-    forall a, In a D -> nth_error T (h a) = Some (rel a).
-  Definition Idempotent T (D: t) h (rel: int -> int) :=
-    forall a, In a D -> nth_error T (h (rel a)) = Some (rel a).
-  Definition Safe T (D: t) h rel (ai: int) :=
-    forall n, (~exists a, In a D /\ (h a = n \/ h (rel a) = n)) -> nth n T ai = ai.
-End HashTable.
-
 Section Hashing.
   Variant hash :=
     | H_UBFX (lsb width: int).

@@ -223,4 +223,5 @@ Definition rw_elf bin pol dsets abort :=
   let content := content ++ [make pad1 0] ++ abort ++ [make pad2 0] ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)) in
   let elf := set_nx elf in
   let elf := set_entrypoint elf (d.(ai) << 2 + 4) in
-  with_load_seg elf content (bi'<<2) <&> data.
+  with_load_seg elf content (bi'<<2) <&> λ e,
+  (data e, d).
