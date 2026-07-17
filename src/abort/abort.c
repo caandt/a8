@@ -17,8 +17,8 @@ asm("b abort\n"
     "add x1, x1, #8\n"
     "bl disable_aslr\n"
     "mov lr, #0\n"
-    "ldr x0, real_entry\n"
-    "br x0\n");
+    "ldr x19, real_entry\n"
+    "br x19\n");
 
 inline long syscall(long num, long arg1, long arg2, long arg3) {
   register long x8 asm("x8") = num;
