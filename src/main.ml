@@ -43,6 +43,8 @@ let default_u63 int default =
 let default_bti = 0x2000_0000
 let default_ai = 0x1fff_0000
 
+let vdso = List.map (lsr2 % Uint63.of_int) [0x7ff7ffe320;0x7ff7ffe820;0x7ff7ffe5c0;0x7ff7ffe808;0x7ff7ffe770]
+
 let main input output pol bi' bti ai abort =
   let* elf = Packager.load input, "Error reading input" in
   let* code, va = Packager.get_text elf, "Error getting text content" in
@@ -55,7 +57,7 @@ let main input output pol bi' bti ai abort =
   Printf.printf "bi:%Lx\nbi':%Lx\nbti:%Lx\nai:%Lx\n" (Uint63.to_int64 bi) (Uint63.to_int64 bi') (Uint63.to_int64 bti) (Uint63.to_int64 ai);
   let pol, dsets =
     match pol with
-    | None -> (fun _ -> Uint63.zero), [List.init (List.length code) (fun x -> Uint63.add bi (Uint63.of_int x))]
+    | None -> (fun _ -> Uint63.zero), [vdso @ List.init (List.length code) (fun x -> Uint63.add bi (Uint63.of_int x))]
     | Some p -> read_policy pol in
 
   let d = In_channel.with_open_bin input In_channel.input_all in
