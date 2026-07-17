@@ -91,23 +91,27 @@ Section InstRewriter.
     Hash.hash_code h Rdst ++
     Asm.MOV (ti<<2) Rtmp ++
     [Asm.LDR_r64 Rdst Rtmp Rdst].
+  Definition tmpreg n := if n =? 0 then 1 else 0.
   Definition rw_BR Rn :=
+    let tmp := tmpreg Rn in
     rpad (
-      [Asm.PUSH2 (Rn+1) (Rn+2)] ++
-      tbl_lookup Rn (Rn+1) ++
-      [Asm.POP2 (Rn+1) (Rn+2); isn.(n)]
+      [Asm.PUSH2 tmp 31] ++
+      tbl_lookup Rn tmp ++
+      [Asm.POP2 tmp 31; isn.(n)]
     ) 10 UDF.
   Definition rw_BLR Rn :=
+    let tmp := tmpreg Rn in
     rpad (
-      [Asm.PUSH2 (Rn+1) (Rn+2)] ++
-      tbl_lookup Rn (Rn+1) ++
-      [Asm.POP2 (Rn+1) (Rn+2)]
+      [Asm.PUSH2 tmp 31] ++
+      tbl_lookup Rn tmp ++
+      [Asm.POP2 tmp 31]
     ) 9 NOP ++ [isn.(n)].
   Definition rw_RET Rn :=
+    let tmp := tmpreg Rn in
     rpad (
-      [Asm.PUSH2 (Rn-1) (Rn-2)] ++
-      tbl_lookup Rn (Rn-1) ++
-      [Asm.POP2 (Rn-1) (Rn-2); isn.(n)]
+      [Asm.PUSH2 tmp 31] ++
+      tbl_lookup Rn tmp ++
+      [Asm.POP2 tmp 31; isn.(n)]
     ) 10 UDF.
   Definition rw_inst :=
     hook dat isn match isn.(t) with
