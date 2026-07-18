@@ -102,7 +102,10 @@ void lief_update_symbols(ELFHandle* handle, rel_t rel) {
 
     auto txt = bin->get_section(".text");
     if (txt != nullptr) {
-        txt->virtual_address(rel(txt->virtual_address() >> 2) << 2);
+        auto start = rel(txt->virtual_address() >> 2) << 2;
+        auto end = rel((txt->virtual_address() + txt->size()) >> 2) << 2;
+        txt->virtual_address(start);
+        txt->size(end - start);
     }
 }
 
