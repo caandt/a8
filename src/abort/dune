@@ -1,22 +1,29 @@
 (rule
- (targets abort.elf)
+ (target runtime.elf)
  (action
-  (progn
-   (run a64-gcc
-        -c -ffreestanding -fno-stack-protector -nostdlib
-        %{dep:abort.c} -o a.o)
-   (run a64-ld
-        -T %{dep:link.ld} -nostdlib a.o -o %{targets}))))
+  (run a64-ld
+       -T %{dep:link.ld} -nostdlib %{dep:runtime.o} %{dep:polhook.o} -o %{target})))
 
 (rule
- (targets abort.bin)
+ (target polhook.o)
+ (deps polhook.c runtime.h)
+ (action
+  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 -fcall-saved-x{0..28} polhook.c -I. -o polhook.o")))
+(rule
+ (target runtime.o)
+ (deps runtime.c runtime.h)
+ (action
+  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 runtime.c -I. -o runtime.o")))
+
+(rule
+ (target runtime.bin)
  (action
   (run a64-objcopy
-       -O binary -j .text -j .got -j .got.plt %{dep:abort.elf} %{targets})))
+       -O binary -j .text -j .got -j .got.plt %{dep:runtime.elf} %{target})))
 
 (rule
- (target abort.ml)
- (deps abort.bin)
+ (target runtime.ml)
+ (deps runtime.bin)
  (action
   (with-stdout-to %{target}
    (run ocaml -e
@@ -25,5 +32,5 @@
    ))))
 
 (library
- (name abort)
- (modules abort))
+ (name runtime)
+ (modules runtime))

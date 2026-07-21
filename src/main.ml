@@ -15,20 +15,6 @@ type eident = [%import: CFI.Rewriter.eident] [@@deriving show]
 type ehdr = [%import: CFI.Rewriter.ehdr] [@@deriving show]
 type phdr = [%import: CFI.Rewriter.phdr] [@@deriving show]
 
-(* let show_elf x = Option.fold (CFI.Rewriter.parse_elf x) ~some:[%show: ehdr * phdr list] ~none:"uhhh" *)
-
-let debug_hook (dat: CFI.Rewriter.data) (id: CFI.Rewriter.i_data) chunk =
-  (* if (lsl2 id.i |> u <> 0x400908L) then chunk else *)
-  if (id.i |> u % lsl2 % dat.rel <> 0x4a7d04L) then chunk else
-  match id.t0 with
-  (* | Ignore -> chunk *)
-  | _ ->
-      let c = Option.fold ~some:(String.concat ";" % List.map hex) ~none:"none" chunk in
-      Printf.printf "[%Lx]@%Lx: %s => [%s]\n" (u id.n) (lsl2 id.i|>u) (show_ityp id.t0) c;
-      Stdlib.flush Stdlib.stdout;
-      chunk
-(* let debug_hook _ _ x = x *)
-
 let read_policy policy_file =
   (fun _ -> Uint63.zero), []
 
@@ -37,43 +23,37 @@ let (let*) (opt, e) f =
   | Some x -> f x
   | None -> Error e
 
-let default_u63 int default =
-  Option.fold ~none:(Uint63.of_int default) ~some:Uint63.of_int int
-
-let default_bti = 0x2000_0000
-let default_ai = 0x1fff_0000
-
 let vdso = List.map (lsr2 % Uint63.of_int) [0x7ff7ffe320;0x7ff7ffe820;0x7ff7ffe5c0;0x7ff7ffe808;0x7ff7ffe770]
 
-let main input output pol bi' bti ai abort =
-  let* elf = Packager.load input, "Error reading input" in
-  let* code, va = Packager.get_text elf, "Error getting text content" in
+type config = {
+  update_symbols: bool;
+  polhook: bool;
+}
+let main input output pol runtime config =
+  let bin = In_channel.with_open_bin input In_channel.input_all in
+  let bin = [Pstring.unsafe_of_string bin] in
+  let runtime = [Pstring.unsafe_of_string runtime] in
+  let* bin', dat = (
+    if config.polhook then
+      CFI.Rewriter.elf_rw_polhook bin runtime, "error rewriting"
+    else
+      let pol, dsets =
+        match pol with
+        | None -> (fun x -> x), []
+        | Some p -> read_policy pol in
+      CFI.Rewriter.elf_rw bin pol dsets runtime, "error rewriting"
+    ) in
+  if config.update_symbols then (
+    let* elf' = Packager.load_mem (String.concat "" (List.map Pstring.to_string bin')), "Error reading input" in
+    Packager.update_symbols elf' dat.rel;
+    Ok (Packager.save_and_close elf' output)
+  ) else
+    Ok (Out_channel.with_open_bin output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string bin')))
 
-  let bi = lsr2 va in
-  let bi' = Option.map Uint63.of_int bi' |> Option.value ~default:(Packager.get_after elf |> lsr2) in
-  let bti = default_u63 bti default_bti in
-  let ai = default_u63 ai default_ai in
-
-  Printf.printf "bi:%Lx\nbi':%Lx\nbti:%Lx\nai:%Lx\n" (Uint63.to_int64 bi) (Uint63.to_int64 bi') (Uint63.to_int64 bti) (Uint63.to_int64 ai);
-  let pol, dsets =
-    match pol with
-    | None -> (fun _ -> Uint63.zero), [vdso @ List.init (List.length code) (fun x -> Uint63.add bi (Uint63.of_int x))]
-    | Some p -> read_policy pol in
-
-  let d = In_channel.with_open_bin input In_channel.input_all in
-  let d = [Pstring.unsafe_of_string d] in
-  let* elf2, dat = CFI.Rewriter.rw_elf d pol dsets [Pstring.unsafe_of_string abort], "error rewriting" in
-
-  let* e = Packager.load_mem (String.concat "" (List.map Pstring.to_string elf2)), "Error reading input" in
-  Packager.update_symbols e dat.rel;
-  Ok (Packager.save_and_close e output)
-
-  (* Ok (Out_channel.with_open_bin output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string elf2))) *)
-
-let run input output pol bi' bti ai abort =
+let run input output pol runtime config =
   let output = Option.value output ~default:(input ^ "_rw") in
-  let abort = Option.fold ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all) ~none:Abort.data abort in
-  let res = main input output pol bi' bti ai abort in
+  let runtime = Option.fold ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all) ~none:Runtime.data runtime in
+  let res = main input output pol runtime config in
   Stdlib.flush Stdlib.stdout;
   res
 
@@ -91,28 +71,22 @@ let policy =
   let absent = "use permissive policy" in
   Arg.(value & opt (some string) None & info ["p"; "policy"] ~docv:"POLICY" ~doc ~absent)
 
-let bi' =
-  let doc = "The index where the new code segment should be placed." in
-  let absent = "place after the last original segment" in
-  Arg.(value & opt (some int) None & info ["c"; "code"] ~docv:"CODE_IDX" ~doc ~absent)
-
-let bti =
-  let doc = "The index where the policy table segment should be placed." in
-  let absent = Printf.sprintf "use 0x%x" default_bti in
-  Arg.(value & opt (some int) None & info ["t"; "table"] ~docv:"TBL_IDX" ~doc ~absent)
-
-let ai =
-  let doc = "The index where the abort segment should be placed." in
-  let absent = Printf.sprintf "use 0x%x" default_ai in
-  Arg.(value & opt (some int) None & info ["a"; "abort-index"] ~docv:"ABT_IDX" ~doc ~absent)
-
 let abort =
   let doc = "The file containing the content of the abort segment." in
   let absent = "abort prints an error and exits" in
   Arg.(value & opt (some string) None & info ["A"; "abort"] ~docv:"ABORT" ~doc ~absent)
 
+let update_symbols =
+  let doc = "Enable updating symbols" in
+  Arg.(value & flag & info ["s"; "symbols"] ~doc)
+let polhook =
+  let doc = "Use polhook" in
+  Arg.(value & flag & info ["P"; "polhook"] ~doc)
+let config =
+  let make update_symbols polhook = { update_symbols; polhook } in
+  Term.(const make $ update_symbols $ polhook)
 let cmd =
-  let term = Term.(const run $ input $ output $ policy $ bi' $ bti $ ai $ abort) in
+  let term = Term.(const run $ input $ output $ policy $ abort $ config) in
   let info = Cmd.info "a64-cfi" ~doc:"CFI rewriter for AArch64" in
   Cmd.v info term
 

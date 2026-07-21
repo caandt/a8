@@ -1,5 +1,6 @@
 Require Export Uint63 List Bool Recdef Lia ZifyUint63.
 Require Import Orders MSetRBT ZArith.
+From stdpp Require Import countable.
 From stdpp Require Export option.
 Require PArray PrimString.
 Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
@@ -27,6 +28,8 @@ Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
 Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).
 
 Definition len {A} (l:list A) := of_nat (List.length l).
+Definition ith {A} (l:list A) n := List.nth_error l (to_nat n).
+Extract Constant ith => "(fun l n -> List.nth_opt l (Uint63.to_int2 n |>snd))".
 
 Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
   if (n =? 0)
@@ -58,6 +61,8 @@ Extract Inlined Constant _letin => "let _ROCQ_LET_IN_EXTRACTION =".
 
 Axiom print_endline : string -> unit.
 Extract Constant print_endline => "(fun x -> print_endline (Pstring.to_string x))".
+Axiom print_int : int -> unit.
+Extract Constant print_int => "(fun x -> print_int (Int64.to_int (Uint63.to_int64 x)))".
 
 Definition csum base lst :=
   let len := len lst in
@@ -83,7 +88,16 @@ Fixpoint map_single {A B} (f:A->B) l :=
   end.
 
 Global Instance int_eq_dec : EqDecision int.
-Proof. intros x y. destruct (x =? y) eqn:E. left. lia. right. lia. Defined.
+Proof.
+  intros x y. destruct (x =? y) eqn:E.
+    left. now apply eqb_correct.
+    right. now apply eqb_false_correct.
+Defined.
+Global Instance int_countable : Countable int.
+Proof.
+  constructor 1 with (Z.to_pos ∘ Z.succ ∘ to_Z) (Some ∘ of_Z ∘ Z.pred ∘ Zpos).
+  simpl. intro. f_equal. now rewrite Z2Pos.id, Z.pred_succ, of_to_Z by apply Zle_lt_succ, to_Z_bounded.
+Defined.
 
 Module IntOT <: UsualOrderedType.
   Definition t := int.

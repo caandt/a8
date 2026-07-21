@@ -24,7 +24,9 @@ Module Encode.
     (sf << 31) lor (0xa6 << 23) lor (N << 22) lor (immr << 16) lor (imms << 10) lor (Rn << 5) lor (Rd).
   Definition LDR_r size Rm option S Rn Rt :=
     (size << 30) lor (0x1c3 << 21) lor (Rm << 16) lor (option << 13) lor (S << 12) lor (2 << 10) lor (Rn << 5) lor (Rt).
-  Definition LDP_STP opc pre L imm7 Rt2 Rn Rt :=
+  Definition LDR_STR size opc imm9 pre(*aka bit11*) Rn Rt :=
+    (size << 30) lor (0x38 << 24) lor (opc << 22) lor (imm9 << 12) lor (pre << 10) lor (Rn << 5) lor (Rt).
+  Definition LDP_STP opc pre(*aka bit23*) L imm7 Rt2 Rn Rt :=
     (opc << 30) lor (0x51 << 23) lor (pre << 24) lor (L << 22) lor (imm7 << 15) lor (Rt2 << 10) lor (Rn << 5) lor (Rt).
 End Encode.
 Definition bounded x bw :=
@@ -59,6 +61,8 @@ Definition b16c imm :=
   - (imm land 0xffff_0000_0000 =? 0)
   - (imm land 0xffff_0000 =? 0)
   - (imm land 0xffff =? 0))%uint63.
+Definition MOV_small imm Rd :=
+  Encode.MOVZ 1 0 imm Rd.
 Definition MOV imm Rd :=
   match b16s imm 0 with
   | nil => Encode.MOVZ 1 0 0 Rd::nil
@@ -74,5 +78,11 @@ Definition STP_pre64 Xt1 Xt2 Xn imm :=
   bounded (imm>>3) 7 <&> λ imm7, Encode.LDP_STP 2 1 0 imm7 Xt2 Xn Xt1.
 Definition LDP_post64 Xt1 Xt2 Xn imm :=
   bounded (imm>>3) 7 <&> λ imm7, Encode.LDP_STP 2 0 1 imm7 Xt2 Xn Xt1.
+Definition STR_pre64 Xt Xn imm :=
+  bounded imm 9 <&> λ imm9, Encode.LDR_STR 3 0 imm9 3 Xn Xt.
+Definition LDR_post64 Xt Xn imm :=
+  bounded imm 9 <&> λ imm9, Encode.LDR_STR 3 1 imm9 1 Xn Xt.
+Definition PUSH Xt1 := STR_pre64 Xt1 31 (-8) orelse 0.
+Definition POP Xt1 := LDR_post64 Xt1 31 (8) orelse 0.
 Definition PUSH2 Xt1 Xt2 := STP_pre64 Xt1 Xt2 31 (-0x10) orelse 0.
 Definition POP2 Xt1 Xt2 := LDP_post64 Xt1 Xt2 31 (0x10) orelse 0.

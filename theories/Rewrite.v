@@ -1,3 +1,4 @@
+From stdpp Require Import gmap.
 Require Import Util.
 Require Hash Decode Asm.
 Import Decode(ityp(..),decode).
@@ -35,6 +36,7 @@ Structure data := {
 }.
 
 Section InstRewriter.
+  Variable rmap : gmap int int.
   Variable hook : data -> i_data -> option (list int) -> option (list int).
   Variable dat : data.
   Variable isn : i_data.
@@ -128,6 +130,44 @@ Section InstRewriter.
     | BLR Rn => Some (rw_BLR Rn)
     | RET Rn => Some (rw_RET Rn)
     end.
+  Section PolHook.
+    Fixpoint retmap isns (i j:int) (m:gmap int int) :=
+      match isns with
+      | nil => m
+      | a::isns =>
+          match a.(t) with
+          | BR _ | BLR _ | RET _ =>
+              retmap isns (i+1) (j+1) (<[i := j]>m)
+          | _ => retmap isns (i+1) j m
+          end
+      end.
+    Fixpoint retlist isns (i:int) l :=
+      match isns with
+      | nil => rev l
+      | a::isns =>
+          match a.(t) with
+          | BR _ | BLR _ | RET _ =>
+              retlist isns (i+1) (i::l)
+          | _ => retlist isns (i+1) l
+          end
+      end.
+    Definition call_polhook Rn :=
+      let call :=
+        [ Asm.PUSH2 Rn 30
+        ; Asm.PUSH2 0 1
+        ; Asm.MOV_small ((rmap !! (i-dat.(bi))) orelse 0) 0
+        ; Asm.BL (i'+3) (dat.(ai)+2) orelse UDF
+        ; Asm.POP2 Rn (30 + (Rn =? 30)) ] in
+      match isn.(t) with
+      | BLR _ => rpad call 9 NOP ++ [isn.(n)]
+      | _ => rpad (call ++ [isn.(n)]) 10 UDF
+      end.
+    Definition polhook chunk :=
+      match isn.(t) with
+      | BR Rn | BLR Rn | RET Rn => Some (call_polhook Rn)
+      | _ => chunk
+      end.
+  End PolHook.
 End InstRewriter.
 
 Definition decode_isns code bi :=
@@ -146,7 +186,7 @@ Definition compute_tables rel ai bti dsets :=
     Hash.find_hash D D' <&> λ h,
     (h, Hash.compute_table_a h ai D D')
   ) dsets <&> λ l,
-    let lens := map (λ x, len (snd x)) l in
+    let lens := map (λ x, len (snd x) << 1) l in
     combine l (list_of_array (csum bti lens)).
 
 Definition global_data code bi bi' pol dsets abtlen :=
@@ -161,4 +201,14 @@ Definition global_data code bi bi' pol dsets abtlen :=
     rel := rel; tc := tc; |}.
 Definition rw hook d :=
   maybe_map (rw_inst hook d) d.(isns).
+Fixpoint deviations {A} idx cum l :=
+  match l with
+  | nil => nil
+  | a::t =>
+      let size := @len A a in
+      let dev := size - 1 in
+      let next_cum_dev := cum + dev in
+      if size =? 1 then deviations (idx+1) next_cum_dev t
+      else idx::next_cum_dev::deviations (idx+1) next_cum_dev t
+  end.
 Definition null_rw := rw (λ _ _ x, x).

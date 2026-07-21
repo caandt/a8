@@ -206,22 +206,78 @@ Definition add_code bin code addr :=
   assert llt code max_int;
   elf ← parse_elf bin;
   with_load_seg elf code addr <&> data.
+Definition replace_code bin code addr entry :=
+  let bin := splice bin 24 [of_list (u64 entry)] in
+  add_code bin code addr.
 
-Definition rw_elf bin pol dsets abort :=
+(*
+   runtime data:
+   {
+     u64 text_start;
+     u64 text_end;
+     u64 new_text_start;
+     u64 real_entry;
+     u64 nrets;
+     u64 dsize;
+     u32 d[];
+   }
+*)
+Definition rtd d entry code' nrets :=
+  let dev := @deviations int 0 0 code' in
+  map (of_list ∘ u64) [
+    d.(bi) << 2;
+    (d.(bi) + len d.(code)) << 2;
+    d.(bi') << 2;
+    entry;
+    nrets;
+    (len dev) >> 1
+  ] ++ map (of_list ∘ u32) (
+    dev
+  ).
+
+
+Definition content_rw hook d runtime entry_i nrets :=
+  code' ← rw hook d;
+  let entry := (d.(rel) entry_i) << 2 in
+  let rtd := rtd d entry code' nrets in
+  let code' := of_chunks32 code' in
+  let tables := of_chunks64 (map_single (λ '(_,x,_),x) d.(tc)) in
+
+  let pad1 := padding (length code') 12 in
+  let pad2 := padding (length runtime) 12 in
+  let pad3 := padding (length tables) 12 in
+
+  let runtime := splice runtime 12 [of_list (u64 ((d.(bti) << 2) + length tables + pad3))] in
+  let content :=
+    code' ++ [make pad1 0] ++
+    runtime ++ [make pad2 0] ++
+    tables ++ [make pad3 0] ++
+    rtd in
+
+  return content.
+
+Definition elf_rw bin pol dsets runtime :=
   elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
   let bi := ts.(p_vaddr) >> 2 in
   let bi' := get_page_after elf in
-  d ← global_data (to_words code) bi bi' pol dsets (length abort >> 2);
-  code' ← null_rw d;
-  let entry := (d.(rel) (elf.(ehdr).(e_entry) >> 2) << 2) in
-  let abort := splice abort 8 [of_list (u64 entry)] in
-  let content := of_chunks32 code' in
-  let pad1 := padding (length content) 12 in
-  let pad2 := padding (length abort) 12 in
-  let content := content ++ [make pad1 0] ++ abort ++ [make pad2 0] ++ of_chunks64 (map (λ '(_,x,_),x) d.(tc)) in
-  let elf := set_nx elf in
-  let elf := set_entrypoint elf (d.(ai) << 2 + 4) in
-  with_load_seg elf content (bi'<<2) <&> λ e,
-  (data e, d).
+  d ← global_data (to_words code) bi bi' pol dsets (length runtime >> 2);
+  let entry_i := d.(rel) (elf.(ehdr).(e_entry) >> 2) in
+  let hook _ _ x := x in
+  content ← content_rw hook d runtime entry_i 0;
+  bin' ← replace_code bin content (bi'<<2) (d.(ai) << 2 + 4);
+  return (bin', d).
+Definition elf_rw_polhook bin runtime :=
+  elf ← parse_elf bin;
+  ts ← txt_seg elf;
+  let code := phdr_content elf ts in
+  let bi := ts.(p_vaddr) >> 2 in
+  let bi' := get_page_after elf in
+  d ← global_data (to_words code) bi bi' (λ _, 0) [] (length runtime >> 2);
+  let entry_i := d.(rel) (elf.(ehdr).(e_entry) >> 2) in
+  let retmap := (retmap d.(isns) 0 0 gmap.gmap_empty) in
+  let hook := polhook retmap in
+  content ← content_rw hook d runtime entry_i (fin_maps.map_fold (λ _ _, succ) 0 retmap);
+  bin' ← replace_code bin content (bi'<<2) (d.(ai) << 2 + 4);
+  return (bin', d).

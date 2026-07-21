@@ -236,7 +236,7 @@ Proof.
   rewrite !cat_spec, !make_spec in Heqi. simpl in Heqi. cbv in Heqi.
   subst i. cbv[ add ltb].
   simpl.
-  rewrite !get_spec, !cat_spec_valid_length, !make_spec by (rewrite ?cat_length_spec, !make_length_spec; simpl; lia).
+  rewrite !get_spec, !cat_spec_valid_length, !make_spec by (rewrite ?cat_length_spec, !make_length_spec; cbn; lia).
   repeat match goal with |- context[Nat.min ?a _] => replace (Nat.min a _) with a by lia end.
   simpl. rewrite !landland. sog. sog.
   2: now rewrite land_spec, andb_true_r, !bit_lsr, bit_M by lia.
