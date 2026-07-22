@@ -222,24 +222,23 @@ Definition replace_code bin code addr entry :=
      u32 d[];
    }
 *)
-Definition rtd d entry code' nrets :=
-  let dev := @deviations int 0 0 code' in
+Definition rtd d entry :=
   map (of_list ∘ u64) [
     d.(bi) << 2;
     (d.(bi) + len d.(code)) << 2;
     d.(bi') << 2;
     entry;
-    nrets;
-    (len dev) >> 1
+    len d.(rets);
+    (len d.(devs)) >> 1
   ] ++ map (of_list ∘ u32) (
-    dev
+    d.(devs)
   ).
 
 
-Definition content_rw hook d runtime entry_i nrets :=
+Definition content_rw hook d runtime entry_i :=
   code' ← rw hook d;
   let entry := (d.(rel) entry_i) << 2 in
-  let rtd := rtd d entry code' nrets in
+  let rtd := rtd d entry in
   let code' := of_chunks32 code' in
   let tables := of_chunks64 (map_single (λ '(_,x,_),x) d.(tc)) in
 
@@ -256,7 +255,7 @@ Definition content_rw hook d runtime entry_i nrets :=
 
   return content.
 
-Definition elf_rw bin pol dsets runtime :=
+Definition elf_rw hook bin pol dsets runtime :=
   elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
@@ -264,20 +263,8 @@ Definition elf_rw bin pol dsets runtime :=
   let bi' := get_page_after elf in
   d ← global_data (to_words code) bi bi' pol dsets (length runtime >> 2);
   let entry_i := d.(rel) (elf.(ehdr).(e_entry) >> 2) in
-  let hook _ _ x := x in
-  content ← content_rw hook d runtime entry_i 0;
-  bin' ← replace_code bin content (bi'<<2) (d.(ai) << 2 + 4);
+  content ← content_rw hook d runtime entry_i;
+  bin' ← replace_code ((set_nx elf).(data)) content (bi'<<2) (d.(ai) << 2 + 4);
   return (bin', d).
 Definition elf_rw_polhook bin runtime :=
-  elf ← parse_elf bin;
-  ts ← txt_seg elf;
-  let code := phdr_content elf ts in
-  let bi := ts.(p_vaddr) >> 2 in
-  let bi' := get_page_after elf in
-  d ← global_data (to_words code) bi bi' (λ _, 0) [] (length runtime >> 2);
-  let entry_i := d.(rel) (elf.(ehdr).(e_entry) >> 2) in
-  let retmap := (retmap d.(isns) 0 0 gmap.gmap_empty) in
-  let hook := polhook retmap in
-  content ← content_rw hook d runtime entry_i (fin_maps.map_fold (λ _ _, succ) 0 retmap);
-  bin' ← replace_code bin content (bi'<<2) (d.(ai) << 2 + 4);
-  return (bin', d).
+  elf_rw polhook bin (λ _, 0) [] runtime.

@@ -1,6 +1,6 @@
 Require Export Uint63 List Bool Recdef Lia ZifyUint63.
 Require Import Orders MSetRBT ZArith.
-From stdpp Require Import countable.
+From stdpp Require Import countable gmap.
 From stdpp Require Export option.
 Require PArray PrimString.
 Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
@@ -98,6 +98,9 @@ Proof.
   constructor 1 with (Z.to_pos ∘ Z.succ ∘ to_Z) (Some ∘ of_Z ∘ Z.pred ∘ Zpos).
   simpl. intro. f_equal. now rewrite Z2Pos.id, Z.pred_succ, of_to_Z by apply Zle_lt_succ, to_Z_bounded.
 Defined.
+
+Definition iimap_empty : gmap.gmap int int := gmap.gmap_empty.
+Definition iimap_lookup i (m: gmap.gmap int int) := lookup i m.
 
 Module IntOT <: UsualOrderedType.
   Definition t := int.

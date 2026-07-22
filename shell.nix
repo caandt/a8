@@ -54,6 +54,7 @@
     ppx_import
     parmap
     utop
+    yojson
   ];
 in
   pkgs.mkShell {

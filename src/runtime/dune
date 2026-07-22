@@ -1,36 +1,12 @@
-(rule
- (target runtime.elf)
- (action
-  (run a64-ld
-       -T %{dep:link.ld} -nostdlib %{dep:runtime.o} %{dep:polhook.o} -o %{target})))
-
-(rule
- (target polhook.o)
- (deps polhook.c runtime.h)
- (action
-  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 -fcall-saved-x{0..28} polhook.c -I. -o polhook.o")))
-(rule
- (target runtime.o)
- (deps runtime.c runtime.h)
- (action
-  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 runtime.c -I. -o runtime.o")))
-
-(rule
- (target runtime.bin)
- (action
-  (run a64-objcopy
-       -O binary -j .text -j .got -j .got.plt %{dep:runtime.elf} %{target})))
-
-(rule
- (target runtime.ml)
- (deps runtime.bin)
- (action
-  (with-stdout-to %{target}
-   (run ocaml -e
-    "let data = In_channel.with_open_bin \"%{deps}\" In_channel.input_all in
-     Printf.printf \"let data = \\\"%s\\\"\\n\" (String.escaped data)"
-   ))))
-
-(library
- (name runtime)
- (modules runtime))
+(subdir runtime
+ (dynamic_include ../gen/dune.inc)
+ (library
+  (name runtime)
+  (modules runtime)))
+(subdir gen
+ (rule
+  (target dune.inc)
+  (deps ../gen_rules.ml)
+  (action
+   (with-stdout-to %{target}
+    (run ocaml %{deps})))))

@@ -6,10 +6,6 @@
 #include <signal.h>
 #include <fcntl.h>
 
-#define A8_NO_ASLR
-#define A8_SEGV_HANDLER
-#define A8_POL_HOOK
-
 #define BASE 0x8a8a80000
 #define REG(n, val) volatile register long x##n asm("x" #n) = val;
 #define REGa(n) REG(n, arg##n)
@@ -115,6 +111,6 @@ typedef struct {
   unsigned long nextfree;
 } map_header;
 typedef struct {
-  unsigned long vals[8];
+  unsigned long vals[7];
   unsigned long nextoffset;
 } map_entry;

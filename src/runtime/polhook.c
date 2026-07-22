@@ -12,8 +12,9 @@ log_b_epilogue:
 void log_b_epilogue();
 void add(unsigned long, unsigned long);
 void log_b(unsigned long src, unsigned long *dst) {
+  // if this isnt in the same page as rtd, you are FUCKED
   rtd_t *rtd; asm("adrp %0, 0\nldr %0, [%0, #12]" : "=r"(rtd));
-  long d = *dst;
+  unsigned long d = *dst;
   if (d < rtd->text_end && rtd->text_start < d)
     d = lookup(rtd, d);
   add(src, d);
@@ -43,7 +44,7 @@ void add(unsigned long key, unsigned long val) {
   }
 }
 #else
-void log_b_prologue(){
-    DIE("no pol hook");
+void log_b_prologue() {
+  DIE("no pol hook");
 }
 #endif

@@ -33,10 +33,17 @@ Structure data := {
 
   (* a mapping from original indices to new indices *)
   rel: int -> int;
+  devs: list int;
+  rets: list int;
 }.
 
+Fixpoint index{A} {eqd : EqDecision A} l x i :=
+  match l with
+  | nil => None
+  | a::t => if eqd a x then Some i else index t x (succ i)
+  end.
+
 Section InstRewriter.
-  Variable rmap : gmap int int.
   Variable hook : data -> i_data -> option (list int) -> option (list int).
   Variable dat : data.
   Variable isn : i_data.
@@ -44,8 +51,8 @@ Section InstRewriter.
   Notation i := (isn.(i)).
   Notation i' := (rel i).
   Notation lbl := (dat.(pol) i).
-  Notation dset := (nth (to_nat lbl) dat.(dsets) nil).
-  Notation tbl := (nth (to_nat lbl) dat.(tc) (Hash.H_UBFX 0 0, nil, 0)).
+  Notation dset := (ith dat.(dsets) lbl orelse []).
+  Notation tbl := (ith dat.(tc) lbl orelse (Hash.H_UBFX 0 1, nil, 0)).
   Notation ti := (snd tbl).
   Notation h := (fst (fst tbl)).
   Section Length.
@@ -131,31 +138,11 @@ Section InstRewriter.
     | RET Rn => Some (rw_RET Rn)
     end.
   Section PolHook.
-    Fixpoint retmap isns (i j:int) (m:gmap int int) :=
-      match isns with
-      | nil => m
-      | a::isns =>
-          match a.(t) with
-          | BR _ | BLR _ | RET _ =>
-              retmap isns (i+1) (j+1) (<[i := j]>m)
-          | _ => retmap isns (i+1) j m
-          end
-      end.
-    Fixpoint retlist isns (i:int) l :=
-      match isns with
-      | nil => rev l
-      | a::isns =>
-          match a.(t) with
-          | BR _ | BLR _ | RET _ =>
-              retlist isns (i+1) (i::l)
-          | _ => retlist isns (i+1) l
-          end
-      end.
     Definition call_polhook Rn :=
       let call :=
         [ Asm.PUSH2 Rn 30
         ; Asm.PUSH2 0 1
-        ; Asm.MOV_small ((rmap !! (i-dat.(bi))) orelse 0) 0
+        ; Asm.MOV_small ((index dat.(rets) i 0) orelse 999999999) 0
         ; Asm.BL (i'+3) (dat.(ai)+2) orelse UDF
         ; Asm.POP2 Rn (30 + (Rn =? 30)) ] in
       match isn.(t) with
@@ -170,11 +157,16 @@ Section InstRewriter.
   End PolHook.
 End InstRewriter.
 
-Definition decode_isns code bi :=
-  mapi (λ i n, {| i := bi + i; n := n; t := decode n |}) code.
-Definition compute_idxs isns bi' :=
-  let lens := map len_inst isns in
-  csum bi' lens.
+Fixpoint retlist isns (i:int) l :=
+  match isns with
+  | nil => rev l
+  | a::isns =>
+      match a.(t) with
+      | BR _ | BLR _ | RET _ =>
+          retlist isns (i+1) (i::l)
+      | _ => retlist isns (i+1) l
+      end
+  end.
 Definition compute_rel idxs bi :=
   let ei := bi + PArray.length idxs - 1 in
   λ x, if (bi <=? x) && (x <? ei)
@@ -188,27 +180,29 @@ Definition compute_tables rel ai bti dsets :=
   ) dsets <&> λ l,
     let lens := map (λ x, len (snd x) << 1) l in
     combine l (list_of_array (csum bti lens)).
-
-Definition global_data code bi bi' pol dsets abtlen :=
-  let isns := decode_isns code bi in
-  let idxs := compute_idxs isns bi' in
-  let rel := compute_rel idxs bi in
-  let ai := pad_to idxs.[PArray.length idxs - 1] 10 in
-  let bti := pad_to (ai + abtlen) 10 in
-  compute_tables rel ai bti dsets <&> λ tc,
-  {| bi := bi; bi' := bi'; bti := bti; ai := ai;
-    code := code; isns := isns; pol := pol; dsets := dsets;
-    rel := rel; tc := tc; |}.
-Definition rw hook d :=
-  maybe_map (rw_inst hook d) d.(isns).
-Fixpoint deviations {A} idx cum l :=
-  match l with
+(* more efficient way to encode lens *)
+Fixpoint deviations idx cum lens :=
+  match lens with
   | nil => nil
-  | a::t =>
-      let size := @len A a in
+  | size::t =>
       let dev := size - 1 in
       let next_cum_dev := cum + dev in
       if size =? 1 then deviations (idx+1) next_cum_dev t
       else idx::next_cum_dev::deviations (idx+1) next_cum_dev t
   end.
+Definition global_data code bi bi' pol dsets abtlen :=
+  let isns := mapi (λ i n, {| i := bi + i; n := n; t := decode n |}) code in
+  let lens := map len_inst isns in
+  let idxs := csum bi' lens in
+  let rel := compute_rel idxs bi in
+  let ai := pad_to idxs.[PArray.length idxs - 1] 10 in
+  let bti := pad_to (ai + abtlen) 10 in
+  let devs := deviations 0 0 lens in
+  let rets := retlist isns bi [] in
+  compute_tables rel ai bti dsets <&> λ tc,
+  {| bi := bi; bi' := bi'; bti := bti; ai := ai;
+    code := code; isns := isns; pol := pol; dsets := dsets;
+    rel := rel; tc := tc; devs := devs; rets := rets; |}.
+Definition rw hook d :=
+  maybe_map (rw_inst hook d) d.(isns).
 Definition null_rw := rw (λ _ _ x, x).

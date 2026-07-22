@@ -6,3 +6,7 @@
 *.cache
 _build
 .direnv
+/ignore/
+*.pol
+*.json
+*.core

@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries CFI runtime packager cmdliner)
+ (libraries CFI runtime packager cmdliner yojson)
  (preprocess (staged_pps ppx_import ppx_deriving.show)))
 
 (alias
