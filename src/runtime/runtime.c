@@ -78,7 +78,7 @@ char *basename(char *path, char **end) {
 }
 void init_polhook(long argv) {
   char *end;
-  char *path = basename(*(char**)argv, &end) - 4;
+  char *path = basename(*(char**)argv, &end) - 5;
   long save_start = *(long*)path;
   long save_end = *(long*)end;
   path[0] = '/';
