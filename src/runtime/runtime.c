@@ -78,14 +78,20 @@ char *basename(char *path, char **end) {
 }
 void init_polhook(long argv) {
   char *end;
-  char *path = basename(*(char**)argv, &end);
-  long save = *(long*)end;
+  char *path = basename(*(char**)argv, &end) - 4;
+  long save_start = *(long*)path;
+  long save_end = *(long*)end;
+  path[0] = '/';
+  path[1] = 't';
+  path[2] = 'm';
+  path[3] = 'p';
+  path[4] = '/';
   end[0] = '.';
   end[1] = 'p';
   end[2] = 'o';
   end[3] = 'l';
   end[4] = '\0';
-  long fd = syscall4(SYS_openat, AT_FDCWD, (long)path, O_RDWR, 0);
+  long fd = syscall4(SYS_openat, 0, (long)path, O_RDWR, 0);
   rtd_t *rtd = get_rtd();
   unsigned long nextfree = sizeof(map_header) + rtd->nrets * sizeof(map_entry);
   unsigned long size = nextfree + (1024 * 1024);
@@ -113,7 +119,8 @@ void init_polhook(long argv) {
   } else if (header->magic != MAP_HEADER_MAGIC || header->nrets != rtd->nrets) {
     DIE("Invalid policy file");
   }
-  *(long*)end = save;
+  *(long*)path = save_start;
+  *(long*)end = save_end;
 }
 #endif
 
