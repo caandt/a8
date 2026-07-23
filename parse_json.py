@@ -2,6 +2,8 @@ import json
 import itertools
 import mmap
 import struct
+import argparse
+import code
 from pathlib import Path
 from collections import defaultdict
 
@@ -116,3 +118,17 @@ class Data:
 
     def retlookup(self, x):
         return self.rets.index(self.irela(x)//4)
+
+if __name__ == '__main__':
+    parse = argparse.ArgumentParser()
+    parse.add_argument("json", type=Path)
+    parse.add_argument("-p", "--pol", type=Path)
+    args = parse.parse_args()
+    j = Data(args.json)
+    p = read_policy(args.pol) if args.pol else None
+    try:
+        import _pyrepl.main
+        _pyrepl.main.interactive_console()
+    except ImportError:
+        import code
+        code.interact(local=globals())
