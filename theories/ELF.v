@@ -139,7 +139,7 @@ Proof. lia. Defined.
 Definition phdr_offsets := range 56.
 Definition to_words sl := map (getu32 sl) (range 4 0 (length sl >> 2)).
 Definition of_chunks32 (lli: list (list int)) := map (λ x, of_list (List.concat (map_single u32 x))) lli.
-Definition of_chunks64 (lli: list (list int)) := flat_map (λ x, (map (λ y, of_list (u64 y)) x)) lli.
+Definition of_chunks64 (lli: list (list int)) := map (λ x, of_list (List.concat (map_single u64 x))) lli.
 Definition parse_phdr bin ehdr :=
   let n := ehdr.(e_phnum) in
   assert negb (n =? 0xffff);

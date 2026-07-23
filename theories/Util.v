@@ -101,6 +101,9 @@ Defined.
 
 Definition iimap_empty : gmap.gmap int int := gmap.gmap_empty.
 Definition iimap_lookup i (m: gmap.gmap int int) := lookup i m.
+Function iseq n l {measure to_nat n} :=
+  if (n =? 0) then l else iseq (n-1) (n-1::l).
+Proof. lia. Defined.
 
 Module IntOT <: UsualOrderedType.
   Definition t := int.

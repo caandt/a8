@@ -28,6 +28,8 @@ Module Encode.
     (size << 30) lor (0x38 << 24) lor (opc << 22) lor (imm9 << 12) lor (pre << 10) lor (Rn << 5) lor (Rt).
   Definition LDP_STP opc pre(*aka bit23*) L imm7 Rt2 Rn Rt :=
     (opc << 30) lor (0x51 << 23) lor (pre << 24) lor (L << 22) lor (imm7 << 15) lor (Rt2 << 10) lor (Rn << 5) lor (Rt).
+  Definition EOR sf shift Rm imm6 Rn Rd :=
+    (sf << 31) lor (0x4a << 24) lor (shift << 22) lor (Rm << 16) lor (imm6 << 10) lor (Rn << 5) lor (Rd).
 End Encode.
 Definition bounded x bw :=
   let bound := 1<<(bw-1) in
@@ -86,3 +88,5 @@ Definition PUSH Xt1 := STR_pre64 Xt1 31 (-8) orelse 0.
 Definition POP Xt1 := LDR_post64 Xt1 31 (8) orelse 0.
 Definition PUSH2 Xt1 Xt2 := STP_pre64 Xt1 Xt2 31 (-0x10) orelse 0.
 Definition POP2 Xt1 Xt2 := LDP_post64 Xt1 Xt2 31 (0x10) orelse 0.
+Definition EOR_lsr Rd Rn Rm shift :=
+  Encode.EOR 1 1 Rm shift Rn Rd.

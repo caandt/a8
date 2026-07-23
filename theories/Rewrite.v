@@ -174,9 +174,9 @@ Definition compute_rel idxs bi :=
        else x.
 Definition compute_tables rel ai bti dsets :=
   maybe_map (λ D,
-    let D' := map rel D in
+    let D' := map_single rel D in
     Hash.find_hash D D' <&> λ h,
-    (h, Hash.compute_table_a h ai D D')
+    (h, Hash.compute_table_m h ai D D')
   ) dsets <&> λ l,
     let lens := map (λ x, len (snd x) << 1) l in
     combine l (list_of_array (csum bti lens)).
