@@ -42,9 +42,12 @@ let save args bin' (dat: CFI.Rewriter.data) =
   if args.update_symbols then (
     let* elf' = Packager.load_mem (String.concat "" (List.map Pstring.to_string bin')), "Error reading input" in
     Packager.update_symbols elf' dat.rel;
-    Ok (Packager.save_and_close elf' args.output)
-  ) else
-    Ok (Out_channel.with_open_bin args.output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string bin')))
+    Packager.write_and_free elf' args.output;
+    Ok (Unix.chmod args.output 0o755)
+  ) else (
+    Out_channel.with_open_bin args.output (fun oc -> List.iter (Out_channel.output_string oc) (List.map Pstring.to_string bin'));
+    Ok (Unix.chmod args.output 0o755)
+  )
 
 let main args =
   let bin = In_channel.with_open_bin args.input In_channel.input_all in
