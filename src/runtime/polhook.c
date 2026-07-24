@@ -1,27 +1,23 @@
 #include "runtime.h"
 #ifdef A8_POL_HOOK
 asm(R"(
-.global log_b_prologue
-log_b_prologue:
-  add x1, sp, #16
-  b log_b
 log_b_epilogue:
   ldp x0, x1, [sp], #16
   ret
+.global log_b
+log_b:
+  add x1, sp, #16
 )");
 void log_b_epilogue();
-void add(unsigned long, unsigned long);
-void log_b(unsigned long src, unsigned long *dst) {
-  // if this isnt in the same page as rtd, you are FUCKED
-  rtd_t *rtd; asm("adrp %0, 0\nldr %0, [%0, #12]" : "=r"(rtd));
-  unsigned long d = *dst;
-  if (d < rtd->text_end && rtd->text_start < d)
-    d = lookup(rtd, d);
-  add(src, d);
-  *dst = d;
+static inline void add(unsigned long, unsigned long);
+void _log_b(unsigned long src, unsigned long *dst) {
+  rtd_t *rtd = get_rtd();
+  if (*dst < rtd->text_end && rtd->text_start <= *dst)
+    *dst = lookup(rtd, *dst);
+  add(src, *dst);
   return log_b_epilogue();
 }
-void add(unsigned long key, unsigned long val) {
+static inline void add(unsigned long key, unsigned long val) {
   map_header *header = (map_header*)BASE;
   if (header->nrets <= key) DIE("Invalid polhook key");
   map_entry *e = ((map_entry*)(BASE + sizeof(map_header))) + key;
@@ -44,7 +40,7 @@ void add(unsigned long key, unsigned long val) {
   }
 }
 #else
-void log_b_prologue() {
+void log_b() {
   DIE("no pol hook");
 }
 #endif

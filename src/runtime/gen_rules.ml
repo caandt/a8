@@ -4,7 +4,7 @@ type config = {
 }
 
 let configs = [
-  { name = "polhook"; cflags = "-DA8_POL_HOOK=1 -DA8_NO_ASLR=1" };
+  { name = "polhook"; cflags = "-DA8_POL_HOOK=1 -DA8_NO_ASLR=1 -DA8_PRELOAD_REL=1" };
   { name = "base"; cflags = "-DA8_NO_ASLR=1" };
 ]
 
@@ -14,7 +14,7 @@ let print_rules config =
  (target %s_polhook.o)
  (deps ../polhook.c ../runtime.h)
  (action
-  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 -fcall-saved-x{0..28} %s ../polhook.c -I. -o %%{target}")))
+  (bash "a64-gcc -c -ffreestanding -fno-stack-protector -nostdlib -fPIE -O3 -fcall-saved-x{2..28} %s ../polhook.c -I. -o %%{target}")))
 
 (rule
  (target %s_runtime.o)

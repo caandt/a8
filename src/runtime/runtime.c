@@ -1,10 +1,11 @@
 #include "runtime.h"
 
 asm(R"(
+.global rtd
 a8_runtime_start:
   b cfi_abort
   b _start
-  b log_b_prologue
+  b log_b
 rtd: .fill 8
 
 _start:
@@ -19,11 +20,6 @@ _start:
   br x19                  // goto real_entry
 )");
 
-static inline rtd_t *get_rtd() {
-  rtd_t *rtd;
-  asm("ldr %0, rtd\n" : "=r"(rtd));
-  return rtd;
-}
 void cfi_abort() {
   DIE("CFI abort");
 }
@@ -98,7 +94,7 @@ void init_polhook(long argv) {
   char init = 0;
   if (fd < 0) {
     init = 1;
-    fd = syscall4(SYS_openat, AT_FDCWD, (long)path, O_RDWR | O_CREAT, 0644);
+    fd = syscall4(SYS_openat, 0, (long)path, O_RDWR | O_CREAT, 0644);
     if (fd < 0) DIE("Could not create policy file");
     long res = syscall3(SYS_ftruncate, fd, size, 0);
     if (res < 0) {
@@ -123,6 +119,26 @@ void init_polhook(long argv) {
   *(long*)end = save_end;
 }
 #endif
+#ifdef A8_PRELOAD_REL
+void init_rel() {
+  rtd_t *rtd = get_rtd();
+  unsigned long n = (rtd->text_end - rtd->text_start) >> 2;
+  unsigned long mapped = syscall6(SYS_mmap, BASE2, ((n << 2) | 0xfff) + 1, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+  if (mapped >= (unsigned long)-4095) {
+    DIE("Could not mmap rel");
+  }
+  int *arr = (int*)mapped;
+  unsigned int d = 0;
+  unsigned long idx = 0;
+  for (unsigned int i = 0; i < n; i++) {
+    if (idx < rtd->dsize && i > rtd->d[idx].idx) {
+      d = rtd->d[idx].dev;
+      idx++;
+    }
+    arr[i] = rtd->new_text_start + 4 * (i + d);
+  }
+}
+#endif
 
 void init(long argv, long envp) {
 #ifdef A8_NO_ASLR
@@ -133,5 +149,8 @@ void init(long argv, long envp) {
 #endif
 #ifdef A8_SEGV_HANDLER
   add_sighandler();
+#endif
+#ifdef A8_PRELOAD_REL
+  init_rel();
 #endif
 }

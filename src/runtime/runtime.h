@@ -6,7 +6,8 @@
 #include <signal.h>
 #include <fcntl.h>
 
-#define BASE 0x8a8a80000
+#define BASE 0x8a000000
+#define BASE2 0xea8a0000
 #define REG(n, val) volatile register long x##n asm("x" #n) = val;
 #define REGa(n) REG(n, arg##n)
 static inline long syscall1(long num, long arg0) {
@@ -84,7 +85,19 @@ typedef struct {
   unsigned long dsize;
   d_t d[];
 } rtd_t;
+static inline rtd_t *get_rtd() {
+  rtd_t *rtd;
+  asm("ldr %0, rtd\n" : "=r"(rtd));
+  return rtd;
+}
 
+#ifdef A8_PRELOAD_REL
+static inline unsigned long lookup(const rtd_t *const rtd, unsigned long addr) {
+  if (addr < rtd->text_end && rtd->text_start <= addr)
+    return *(int*)(BASE2 + addr - rtd->text_start);
+  return addr;
+}
+#else
 static inline unsigned long lookup(const rtd_t *const rtd, unsigned long addr) {
   unsigned int n = (addr - rtd->text_start) / 4;
   unsigned long low = 0;
@@ -104,6 +117,7 @@ static inline unsigned long lookup(const rtd_t *const rtd, unsigned long addr) {
   }
   return rtd->new_text_start + (4 * (n + rtd->d[ans].dev));
 }
+#endif
 #define MAP_HEADER_MAGIC 0x7963696c6f70a8a8
 typedef struct {
   unsigned long magic;
