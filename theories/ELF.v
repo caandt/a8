@@ -138,8 +138,9 @@ Function range step i n {measure to_nat n} :=
 Proof. lia. Defined.
 Definition phdr_offsets := range 56.
 Definition to_words sl := map (getu32 sl) (range 4 0 (length sl >> 2)).
-Definition of_chunks32 (lli: list (list int)) := map (λ x, of_list (List.concat (map_single u32 x))) lli.
-Definition of_chunks64 (lli: list (list int)) := map (λ x, of_list (List.concat (map_single u64 x))) lli.
+Definition of_chunks32 lli := map (λ x, of_list (List.concat (map_single u32 x))) lli.
+Definition of_chunks64 lli := map (λ x, of_list (List.concat (map_single u64 x))) lli.
+Definition of_chunks64' lli := flat_map (λ x, (map (λ y, of_list (u64 y)) x)) lli.
 Definition parse_phdr bin ehdr :=
   let n := ehdr.(e_phnum) in
   assert negb (n =? 0xffff);
@@ -240,7 +241,7 @@ Definition content_rw hook d runtime entry_i :=
   let entry := (d.(rel) entry_i) << 2 in
   let rtd := rtd d entry in
   let code' := of_chunks32 code' in
-  let tables := of_chunks64 (map_single (λ '(_,x,_),x) d.(tc)) in
+  let tables := (if len d.(tc) <? 3 then of_chunks64' else of_chunks64) (map_single (λ '(_,x,_),x) d.(tc)) in
 
   let pad1 := padding (length code') 12 in
   let pad2 := padding (length runtime) 12 in

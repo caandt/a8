@@ -54,7 +54,7 @@ let main args =
   let bin = [Pstring.unsafe_of_string bin] in
   let runtime = [Pstring.unsafe_of_string args.runtime] in
   let getpol () = (match args.pol with
-    | None -> Some (Fun.id, [])
+    | None -> Util.default_pol args.input
     | Some p -> Policy.read_policy args.input p), "Error reading policy" in
 
   if args.onlyjson then

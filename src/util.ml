@@ -23,9 +23,19 @@ type ehdr = [%import: CFI.Rewriter.ehdr] [@@deriving show]
 type phdr = [%import: CFI.Rewriter.phdr] [@@deriving show]
 type hash = [%import: CFI.Rewriter.hash] [@@deriving show]
 
+let vdso = List.map (lsr2 % of_int) [0x7ff7ffe320;0x7ff7ffe820;0x7ff7ffe5c0;0x7ff7ffe808;0x7ff7ffe770]
+
+let default_pol path =
+  let^ elf = Packager.load path in
+  let^ code, va = Packager.get_text elf in
+  let bi = lsr2 va in
+  let pol _ = zero in
+  let dset = List.init (List.length code) (fun x -> add bi (of_int x)) in
+  Some (pol, [vdso @ dset])
+
 let global_data ?(pol=Fun.id) ?(dsets=[]) ?(runtime=Runtime.base) path =
   let^ elf = Packager.load path in
   let^ code, va = Packager.get_text elf in
   let bi = lsr2 va in
   let bi' = Packager.get_after elf |> lsr2 in
-  CFI.Rewriter.global_data code bi bi' pol dsets (String.length runtime |> Uint63.of_int)
+  CFI.Rewriter.global_data code bi bi' pol dsets (String.length runtime |> of_int)
