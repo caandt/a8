@@ -77,5 +77,5 @@ Section Table.
     let entries := (map_single (λ '(i, i'), (hash_func h (4*i), 4*i')) (combine D D')) in
     let entries' := (map_single (λ i', (hash_func h (4*i'), 4*i')) D') in
     let m := fin_maps.list_to_map (entries++entries') in
-    map_single (fun n => iimap_lookup n m orelse ai) (iseq (hash_size h) []).
+    map_single (fun n => iimap_lookup n m orelse (4*ai)) (iseq (hash_size h) []).
 End Table.
