@@ -16,13 +16,13 @@ Definition asrt (x:bool) : option unit := if x then Some tt else None.
 Notation "'assert' x ; f" := (_ ← asrt x; f) (at level 100).
 Notation "x 'orelse' y" := (default y x) (at level 10).
 
-Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
+Fixpoint _mapi {A B} sz acc i f (l: list A) : list B :=
   match l with
   | nil => rev acc
-  | a::t => _mapi (f i a::acc) (i+1) f t
+  | a::t => _mapi sz (f i a::acc) (i+sz a) f t
   end.
-Definition mapi_single {A B} := @_mapi A B nil 0.
-Definition mapi{A B} := @mapi_single A B.
+Definition mapi {A B} := @_mapi A B (const 1) nil 0.
+Definition mapisz {A B} sz := @_mapi A B sz nil 0.
 
 Definition clearlow12 n := n land (max_int lxor 0xfff).
 Definition maybe_op {A B C} (op: A -> B -> C) x y := x ≫= λ x, y ≫= λ y, Some (op x y).

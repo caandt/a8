@@ -28,6 +28,12 @@ Variant cinst :=
   | Itbl (r lbl: int)
   | Ihsh (r lbl: int)
   | Ib   (sz:isize) (t: ityp) (d: reloc).
+Definition instsize inst :=
+  match inst with
+  | Inum _ => 1
+  | Itbl _ _ | Ihsh _ _ => 2
+  | Iimm sz _ _ | Ib sz _ _ => intsize sz
+  end.
 Record args := {
   code: list int;
   pol: int → int;
@@ -47,8 +53,8 @@ Record data := {
   rets: list int;
   devs: list int;
 }.
-Definition relmapii{A B} rel bi (f: int -> A -> B) l :=
-  mapi (λ i, mapi_single (λ j, f (rel (bi + i) + j))) l.
+Definition relmapii {A} rel bi (f: int -> cinst -> A) l :=
+  mapi (λ i, mapisz instsize (λ j, f (rel (bi + i) + j))) l.
 Section ChunkGeneration.
   Variable a : args.
   Notation pol := a.(pol).
@@ -87,12 +93,6 @@ Section ChunkGeneration.
       end.
   End InstRewriter.
   Section Relaxation.
-    Definition instsize inst :=
-      match inst with
-      | Inum _ => 1
-      | Itbl _ _ | Ihsh _ _ => 2
-      | Iimm sz _ _ | Ib sz _ _ => intsize sz
-      end.
     Definition chunksize chunk := fold_left add (map_single instsize chunk) 0.
     Definition makerel chunks :=
       let lens := map chunksize chunks in
