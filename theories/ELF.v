@@ -225,9 +225,9 @@ Definition replace_code bin code addr entry :=
 *)
 Definition rtd d entry :=
   map (of_list ∘ u64) [
-    d.(bi) << 2;
-    (d.(bi) + len d.(code)) << 2;
-    d.(bi') << 2;
+    d.(arg).(bi) << 2;
+    (d.(arg).(bi) + len d.(arg).(code)) << 2;
+    d.(arg).(bi') << 2;
     entry;
     len d.(rets);
     (len d.(devs)) >> 1
@@ -235,37 +235,32 @@ Definition rtd d entry :=
     d.(devs)
   ).
 
-
-Definition content_rw hook d runtime entry_i :=
-  code' ← rw hook d;
-  let entry := (d.(rel) entry_i) << 2 in
-  let rtd := rtd d entry in
-  let code' := of_chunks32 code' in
-  let tables := (if len d.(tc) <? 3 then of_chunks64' else of_chunks64) (map_single (λ '(_,x,_),x) d.(tc)) in
-
-  let pad1 := padding (length code') 12 in
-  let pad2 := padding (length runtime) 12 in
-  let pad3 := padding (length tables) 12 in
-
-  let runtime := splice runtime 12 [of_list (u64 ((d.(bti) << 2) + length tables + pad3))] in
-  let content :=
-    code' ++ [make pad1 0] ++
-    runtime ++ [make pad2 0] ++
-    tables ++ [make pad3 0] ++
-    rtd in
-
-  return content.
-
-Definition elf_rw hook bin pol dsets runtime :=
+Definition elf_rw bin runtime pol dsets nrelax :=
   elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
   let bi := ts.(p_vaddr) >> 2 in
   let bi' := get_page_after elf in
-  d ← global_data (to_words code) bi bi' pol dsets (length runtime >> 2);
-  let entry_i := d.(rel) (elf.(ehdr).(e_entry) >> 2) in
-  content ← content_rw hook d runtime entry_i;
-  bin' ← replace_code ((set_nx elf).(data)) content (bi'<<2) (d.(ai) << 2 + 4);
-  return (bin', d).
-Definition elf_rw_polhook bin runtime :=
-  elf_rw polhook bin (λ _, 0) [] runtime.
+  let arg := {|
+    bi := bi; bi' := bi'; code := to_words code;
+    pol := pol; dsets := dsets; nrelax := nrelax;
+    rtlen := length runtime;
+  |} in
+  d' ← makedata arg;
+  code' ← rw d';
+  let entry_i := d'.(rel) (elf.(ehdr).(e_entry) >> 2) in
+  let rtd := rtd d' (entry_i << 2) in
+  let code' := of_chunks32 code' in
+  let ofchunks64 := (if len d'.(tc) <? 3 then of_chunks64' else of_chunks64) in
+  let tables := ofchunks64 (map_single (λ '(_,x,_),x) d'.(tc)) in
+  let pad1 := padding (length code') 12 in
+  let pad2 := padding (arg.(rtlen)) 12 in
+  let pad3 := padding (length tables) 12 in
+  let runtime := splice (runtime) 12 [of_list (u64 ((d'.(bti) << 2) + length tables + pad3))] in
+  let content :=
+    code' ++ [make pad1 0] ++
+    runtime ++ [make pad2 0] ++
+    tables ++ [make pad3 0] ++
+    rtd in
+  bin' ← replace_code ((set_nx elf).(data)) content (bi'<<2) (d'.(ai) << 2 + 4);
+  return (bin', d').

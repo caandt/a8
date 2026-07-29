@@ -21,8 +21,10 @@ Fixpoint _mapi {A B} acc i f (l: list A) : list B :=
   | nil => rev acc
   | a::t => _mapi (f i a::acc) (i+1) f t
   end.
-Definition mapi {A B} := @_mapi A B nil 0.
+Definition mapi_single {A B} := @_mapi A B nil 0.
+Definition mapi{A B} := @mapi_single A B.
 
+Definition clearlow12 n := n land (max_int lxor 0xfff).
 Definition maybe_op {A B C} (op: A -> B -> C) x y := x ≫= λ x, y ≫= λ y, Some (op x y).
 Definition mapfold {A B C} op (f:A->B) l b : C := fold_right op b (map f l).
 Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Some nil).

@@ -4,205 +4,239 @@ Require Hash Decode Asm.
 Import Decode(ityp(..),decode).
 Import ListNotations.
 
-Structure i_data := {
-  i: int;
-  n: int;
-  t: ityp;
-}.
-Structure data := {
-  (* the base index of the original text segment *)
-  bi: int;
-  (* the base index to place the new text segment *)
-  bi': int;
-  (* the base index to place tables *)
-  bti: int;
-  (* the index of the abort handler *)
-  ai: int;
-
-  (* the original text segment *)
+Variant reloc :=
+  | Raddr (i: int)
+  | Rrt (i: int).
+Variant isize :=
+  | Sz1
+  | Sz2
+  | Sz3.
+Definition intsize sz :=
+  match sz with
+  | Sz1 => 1
+  | Sz2 => 2
+  | Sz3 => 3
+  end.
+Variant list3 :=
+  | Lst0
+  | Lst1 (i1: int)
+  | Lst2 (i1 i2: int)
+  | Lst3 (i1 i2 i3: int).
+Variant cinst :=
+  | Inum (n: int)
+  | Iimm (sz:isize) (r imm: int)
+  | Itbl (r lbl: int)
+  | Ihsh (r lbl: int)
+  | Ib   (sz:isize) (t: ityp) (d: reloc).
+Record args := {
   code: list int;
-  isns: list i_data;
-
-  (* the list of all sets of permitted destination indices *)
+  pol: int → int;
   dsets: list (list int);
-  (* for each dset, (hash, table content, table index) *)
-  tc: list (Hash.hash * list int * int);
-  (* a mapping from instruction indices to an index of the dsets list,
-     describing what destinations are permitted jump targets *)
-  pol: int -> int;
-
-  (* a mapping from original indices to new indices *)
-  rel: int -> int;
-  devs: list int;
-  rets: list int;
+  bi: int;
+  bi': int;
+  nrelax: nat;
+  rtlen: int;
 }.
-
-Fixpoint index{A} {eqd : EqDecision A} l x i :=
-  match l with
-  | nil => None
-  | a::t => if eqd a x then Some i else index t x (succ i)
-  end.
-
-Section InstRewriter.
-  Variable hook : data -> i_data -> option (list int) -> option (list int).
-  Variable dat : data.
-  Variable isn : i_data.
-  Notation rel := dat.(rel).
-  Notation i := (isn.(i)).
-  Notation i' := (rel i).
-  Notation lbl := (dat.(pol) i).
-  Notation dset := (ith dat.(dsets) lbl orelse []).
-  Notation tbl := (ith dat.(tc) lbl orelse (Hash.H_UBFX 0 1, nil, 0)).
-  Notation ti := (snd tbl).
-  Notation h := (fst (fst tbl)).
-  Section Length.
-    Definition len_ADR imm :=
-      let dst := (i<<2) + sext imm 21 in
-      Asm.b16c dst.
-    Definition len_ADRP imm :=
-      let dst := (i<<2 land (max_int lxor 0xfff)) + sext (imm << 12) 33 in
-      Asm.b16c dst.
-    Definition len_inst :=
-      match isn.(t) with
-      | ADR imm Rd => len_ADR imm
-      | ADRP imm Rd => len_ADRP imm
-      | BR _ | BLR _ | RET _ => 10
-      | _ => 1
+Record data := {
+  chunks: list (list cinst);
+  rel: int → int;
+  ai: int;
+  bti: int;
+  tc: list (Hash.hash * list int * int);
+  arg: args;
+  rets: list int;
+  devs: list int;
+}.
+Definition relmapii{A B} rel bi (f: int -> A -> B) l :=
+  mapi (λ i, mapi_single (λ j, f (rel (bi + i) + j))) l.
+Section ChunkGeneration.
+  Variable a : args.
+  Notation pol := a.(pol).
+  Notation dsets := a.(dsets).
+  Notation bi := a.(bi).
+  Notation bi' := a.(bi').
+  Section InstRewriter.
+    Variable idx n : int.
+    Notation i := (bi + idx).
+    Notation t := (decode n).
+    Notation lbl := (pol i).
+    Notation dset := (ith dsets lbl orelse []).
+    Definition rw_indirect Rn :=
+      match dset with
+      | [] => [Ib Sz1 (BL 0) (Rrt 0)]
+      | [d] => [Iimm Sz3 Rn d; Inum n]
+      | _ =>
+          let Rtmp := b2i (is_zero Rn) in
+          [ Inum (Asm.PUSH2 Rtmp 31)
+          ; Ihsh Rn lbl
+          ; Itbl Rtmp lbl
+          ; Inum (Asm.LDR_r64 Rn Rtmp Rn)
+          ; Inum (Asm.POP2 Rtmp 31)
+          ; Inum n ]
       end.
-  End Length.
-  Definition UDF := 0.
-  Definition NOP := 0xd503201f.
-  Definition rw_ADR imm Rd :=
-    let dst := (i<<2) + sext imm 21 in
-    Asm.MOV dst Rd.
-  Definition rw_ADRP imm Rd :=
-    let dst := (i<<2 land (max_int lxor 0xfff)) + sext (imm << 12) 33 in
-    Asm.MOV dst Rd.
-  Definition rw_B imm :=
-    let dst := i + sext imm 26 in
-    Asm.B i' (rel dst).
-  Definition rw_BL imm :=
-    let dst := i + sext imm 26 in
-    Asm.BL i' (rel dst).
-  Definition goto_abort :=
-    Asm.BL i' dat.(ai) orelse UDF.
-  Definition rw_Bcond imm cond :=
-    let dst := i + sext imm 19 in
-    Asm.Bcond i' (rel dst) cond.
-  Definition rw_CBZ sf op imm Rt :=
-    let dst := i + sext imm 19 in
-    Asm.CBZ sf op i' (rel dst) Rt.
-  Definition rw_TBZ b5 op b40 imm Rt :=
-    let dst := i + sext imm 14 in
-    Asm.TBZ b5 op b40 i' (rel dst) Rt.
-
-  Definition tbl_lookup Rdst Rtmp :=
-    Hash.hash_code h Rdst ++
-    Asm.MOV (ti<<2) Rtmp ++
-    [Asm.LDR_r64 Rdst Rtmp Rdst].
-  Definition tmpreg n := if n =? 0 then 1 else 0.
-  Definition rw_BR Rn :=
-    let tmp := tmpreg Rn in
-    rpad (
-      [Asm.PUSH2 tmp 31] ++
-      tbl_lookup Rn tmp ++
-      [Asm.POP2 tmp 31; isn.(n)]
-    ) 10 UDF.
-  Definition rw_BLR Rn :=
-    let tmp := tmpreg Rn in
-    rpad (
-      [Asm.PUSH2 tmp 31] ++
-      tbl_lookup Rn tmp ++
-      [Asm.POP2 tmp 31]
-    ) 9 NOP ++ [isn.(n)].
-  Definition rw_RET Rn :=
-    let tmp := tmpreg Rn in
-    rpad (
-      [Asm.PUSH2 tmp 31] ++
-      tbl_lookup Rn tmp ++
-      [Asm.POP2 tmp 31; isn.(n)]
-    ) 10 UDF.
-  Definition rw_inst :=
-    hook dat isn match isn.(t) with
-    | ignore => Some [isn.(n)]
-    | invalid => Some [goto_abort]
-    | ADR imm Rd => Some (rw_ADR imm Rd)
-    | ADRP imm Rd => Some (rw_ADRP imm Rd)
-    | Bcond imm cond => Some [rw_Bcond imm cond orelse UDF]
-    | B imm => Some [rw_B imm orelse UDF]
-    | BL imm => Some [rw_BL imm orelse UDF]
-    | CBZ sf op imm Rt => Some [rw_CBZ sf op imm Rt orelse UDF]
-    | TBZ b5 op b40 imm Rt => Some [rw_TBZ b5 op b40 imm Rt orelse UDF]
-    | BR Rn => Some (rw_BR Rn)
-    | BLR Rn => Some (rw_BLR Rn)
-    | RET Rn => Some (rw_RET Rn)
+    Definition rw_inst :=
+      match t with
+      | ignore => [Inum n]
+      | invalid => [Ib Sz1 (BL 0) (Rrt 0)]
+      | ADR imm Rd => [Iimm Sz2 Rd ((i<<2)+sext imm 21)]
+      | ADRP imm Rd => [Iimm Sz3 Rd (clearlow12 (i<<2)+sext (imm<<12) 33)]
+      | Bcond imm _ | CBZ _ _ imm _ => [Ib Sz2 t (Raddr (i+sext imm 19))]
+      | B imm | BL imm => [Ib Sz1 t (Raddr (i+sext imm 26))]
+      | TBZ _ _ _ imm _ => [Ib Sz2 t (Raddr (i+sext imm 14))]
+      | BR Rn | BLR Rn | RET Rn => rw_indirect Rn
+      end.
+  End InstRewriter.
+  Section Relaxation.
+    Definition instsize inst :=
+      match inst with
+      | Inum _ => 1
+      | Itbl _ _ | Ihsh _ _ => 2
+      | Iimm sz _ _ | Ib sz _ _ => intsize sz
+      end.
+    Definition chunksize chunk := fold_left add (map_single instsize chunk) 0.
+    Definition makerel chunks :=
+      let lens := map chunksize chunks in
+      let idxs := csum bi' lens in
+      let ei := bi + len chunks in
+      λ x, if (bi <=? x) && (x <=? ei)
+           then PArray.get idxs (x - bi)
+           else x.
+    Definition fits bw n := (lesb (-1<<(bw-1)) n) && (ltsb n (1<<(bw-1))).
+    Definition relaxi rel i' inst :=
+      match inst with
+      | Iimm Sz1 _ _ => inst
+      | Iimm _ r imm =>
+          if (clearlow12 imm =? imm) && (fits 21 (asr imm 12-i'>>10)) then Iimm Sz1 r imm
+          else if fits 21 (imm-i'<<2) then Iimm Sz1 r imm
+          else if fits 21 (asr imm 12-i'>>10) then Iimm Sz2 r imm
+          else if imm <? 1 << 32 then Iimm Sz2 r imm
+          else inst
+      | Ib Sz2 t (Raddr d) =>
+          let bw := match t with
+                    | Bcond _ _ | CBZ _ _ _ _ => 19
+                    | TBZ _ _ _ _ _ => 14 | _ => 0 end in
+          if fits bw (i'-rel d) then Ib Sz1 t (Raddr d)
+          else inst
+      | _ => inst
+      end.
+    Definition relax chunks :=
+      let rel := makerel chunks in
+      relmapii rel bi (relaxi rel) chunks.
+  End Relaxation.
+  Definition makechunks :=
+    let c := mapi rw_inst a.(code) in
+    Nat.iter a.(nrelax) relax (c).
+  Definition compute_tables rel ai bti dsets :=
+    maybe_map (λ D,
+      let D' := map_single rel D in
+      Hash.find_hash D D' <&> λ h,
+      (h, Hash.compute_table_a h ai D D')
+    ) dsets <&> λ l,
+      let lens := map (λ x, len (snd x) << 1) l in
+      combine l (list_of_array (csum bti lens)).
+  Fixpoint retlist isns (i:int) l :=
+    match isns with
+    | nil => rev l
+    | a::isns =>
+        match decode a with
+        | BR _ | BLR _ | RET _ => retlist isns (i+1) (i::l)
+        | _ => retlist isns (i+1) l
+        end
     end.
-  Section PolHook.
-    Definition call_polhook Rn :=
-      let call :=
-        [ Asm.PUSH2 Rn 30
-        ; Asm.PUSH2 0 1
-        ; Asm.MOV_small ((index dat.(rets) i 0) orelse 999999999) 0
-        ; Asm.BL (i'+3) (dat.(ai)+2) orelse UDF
-        ; Asm.POP2 Rn (30 + (Rn =? 30)) ] in
-      match isn.(t) with
-      | BLR _ => rpad call 9 NOP ++ [isn.(n)]
-      | _ => rpad (call ++ [isn.(n)]) 10 UDF
-      end.
-    Definition polhook chunk :=
-      match isn.(t) with
-      | BR Rn | BLR Rn | RET Rn => Some (call_polhook Rn)
-      | _ => chunk
-      end.
-  End PolHook.
-End InstRewriter.
-
-Fixpoint retlist isns (i:int) l :=
-  match isns with
-  | nil => rev l
-  | a::isns =>
-      match a.(t) with
-      | BR _ | BLR _ | RET _ =>
-          retlist isns (i+1) (i::l)
-      | _ => retlist isns (i+1) l
-      end
-  end.
-Definition compute_rel idxs bi :=
-  let ei := bi + PArray.length idxs - 1 in
-  λ x, if (bi <=? x) && (x <? ei)
-       then PArray.get idxs (x - bi)
-       else x.
-Definition compute_tables rel ai bti dsets :=
-  maybe_map (λ D,
-    let D' := map_single rel D in
-    Hash.find_hash D D' <&> λ h,
-    (h, Hash.compute_table_m h ai D D')
-  ) dsets <&> λ l,
-    let lens := map (λ x, len (snd x) << 1) l in
-    combine l (list_of_array (csum bti lens)).
-(* more efficient way to encode lens *)
-Fixpoint deviations idx cum lens :=
-  match lens with
-  | nil => nil
-  | size::t =>
-      let dev := size - 1 in
-      let next_cum_dev := cum + dev in
-      if size =? 1 then deviations (idx+1) next_cum_dev t
-      else idx::next_cum_dev::deviations (idx+1) next_cum_dev t
-  end.
-Definition global_data code bi bi' pol dsets abtlen :=
-  let isns := mapi (λ i n, {| i := bi + i; n := n; t := decode n |}) code in
-  let lens := map len_inst isns in
-  let idxs := csum bi' lens in
-  let rel := compute_rel idxs bi in
-  let ai := pad_to idxs.[PArray.length idxs - 1] 10 in
-  let bti := pad_to (ai + abtlen) 10 in
-  let devs := deviations 0 0 lens in
-  let rets := retlist isns bi [] in
-  compute_tables rel ai bti dsets <&> λ tc,
-  {| bi := bi; bi' := bi'; bti := bti; ai := ai;
-    code := code; isns := isns; pol := pol; dsets := dsets;
-    rel := rel; tc := tc; devs := devs; rets := rets; |}.
-Definition rw hook d :=
-  maybe_map (rw_inst hook d) d.(isns).
-Definition null_rw := rw (λ _ _ x, x).
+  Fixpoint deviations idx cum lens :=
+    match lens with
+    | nil => nil
+    | size::t =>
+        let dev := size - 1 in
+        let next_cum_dev := cum + dev in
+        if size =? 1 then deviations (idx+1) next_cum_dev t
+        else idx::next_cum_dev::deviations (idx+1) next_cum_dev t
+    end.
+  Definition makedata :=
+    let chunks := makechunks in
+    let rel := makerel chunks in
+    let ai := pad_to (rel (bi + len a.(code))) 10 in
+    let bti := pad_to (ai + a.(rtlen)) 10 in
+    let rets := retlist a.(code) 0 [] in
+    let devs := deviations 0 0 (map chunksize chunks) in
+    tc ← compute_tables rel ai bti dsets;
+    return {|
+      arg := a; chunks := chunks; rel := rel;
+      ai := ai; bti := bti; tc := tc;
+      rets := rets; devs := devs
+    |}.
+End ChunkGeneration.
+Section InstSelection.
+  Variable d : data.
+  Notation ai := d.(ai).
+  Notation tc := d.(tc).
+  Notation rel := d.(rel).
+  Definition mov2 r i' imm :=
+    if fits 21 (asr imm 12-i'>>10) then
+      Lst2 (Asm.ADRP i' imm r orelse Asm.UDF)
+           (Asm.Encode.MOVK 1 0 (imm land 0xffff) r)
+    else if imm >> 32 =? 0 then
+      Lst2 (Asm.Encode.MOVZ 1 1 (imm >> 16) r)
+           (Asm.Encode.MOVK 1 0 (imm land 0xffff) r)
+    else Lst0.
+  Definition hash_code h r :=
+    match h with
+    | Hash.H_UBFX lsb width => Lst2 Asm.NOP (Asm.UBFX true r r lsb width)
+    | Hash.H_EOR_UBFX shift lsb width => Lst2 (Asm.EOR_lsr r r r shift) (Asm.UBFX true r r lsb width)
+    end.
+  Definition isel i' inst :=
+    match inst with
+    | Inum n => Lst1 n
+    | Ihsh r lbl => hash_code (fst (fst (ith tc lbl orelse (Hash.H_UBFX 0 0, [0], 0)))) r
+    | Iimm Sz1 r imm =>
+        (Lst1 <$> Asm.ADRP i' imm r) orelse
+        ((Lst1 <$> Asm.ADR i' imm r) orelse Lst0)
+    | Itbl r lbl => mov2 r i' (4 * snd (ith tc lbl orelse (Hash.H_UBFX 0 0, [0], 0)))
+    | Iimm Sz2 r imm => mov2 r i' imm
+    | Iimm Sz3 r imm =>
+        if i' >> 46 =? imm >> 48 then
+          Lst3 (Asm.ADRP (i' land (0xffff_ffff>>2)) (imm land 0xffff_ffff) r orelse Asm.UDF)
+               (Asm.Encode.MOVK 1 2 ((imm >> 32) land 0xffff) r)
+               (Asm.Encode.MOVK 1 0 (imm land 0xffff) r)
+        else if imm >> 48 =? 0 then
+          Lst3 (Asm.Encode.MOVZ 1 2 ((imm >> 32) land 0xffff) r)
+               (Asm.Encode.MOVK 1 1 ((imm >> 16) land 0xffff) r)
+               (Asm.Encode.MOVK 1 0 (imm land 0xffff) r)
+        else Lst0
+    | Ib Sz1 (B _) (Raddr d) =>
+        (Lst1 <$> Asm.B i' (rel d)) orelse Lst0
+    | Ib Sz1 (BL _) (Raddr d) =>
+        (Lst1 <$> Asm.BL i' (rel d)) orelse (Lst1 0)
+    | Ib Sz1 (BL _) (Rrt n) =>
+        (Lst1 <$> Asm.BL i' (ai+n)) orelse (Lst1 Asm.UDF)
+    | Ib Sz1 (Bcond _ cond) (Raddr d) =>
+        (Lst1 <$> Asm.Bcond i' (rel d) cond) orelse Lst0
+    | Ib Sz1 (CBZ sf op _ Rt) (Raddr d) =>
+        (Lst1 <$> Asm.CBZ sf op i' (rel d) Rt) orelse Lst0
+    | Ib Sz1 (TBZ b5 op b40 _ Rt) (Raddr d) =>
+        (Lst1 <$> Asm.TBZ b5 op b40 i' (rel d) Rt) orelse Lst0
+    | Ib Sz2 (Bcond _ cond) (Raddr d) =>
+        let inv := (Asm.Bcond i' (i'+2) (cond lxor 1)) orelse Asm.UDF in
+        (Lst2 inv <$> Asm.B (i'+1) (rel d)) orelse Lst0
+    | Ib Sz2 (CBZ sf op _ Rt) (Raddr d) =>
+        let inv := (Asm.CBZ sf (b2i (is_zero op)) i' (i'+2) Rt) orelse Asm.UDF in
+        (Lst2 inv <$> Asm.B (i'+1) (rel d)) orelse Lst0
+    | Ib Sz2 (TBZ b5 op b40 _ Rt) (Raddr d) =>
+        let inv := (Asm.TBZ b5 (b2i (is_zero op)) b40 i' (i'+2) Rt) orelse Asm.UDF in
+        (Lst2 inv <$> Asm.B (i'+1) (rel d)) orelse Lst0
+    | _ => Lst0
+    end.
+  Definition emit chunks :=
+    maybe_map (λ chunk,
+      @rev int <$> fold_left (λ a s,
+        match a, s with
+        | Some l, Lst1 a => Some (a::l)
+        | Some l, Lst2 a b => Some (b::a::l)
+        | Some l, Lst3 a b c => Some (c::b::a::l)
+        | _, _ => None
+        end)
+      chunk (Some nil)
+    ) chunks.
+  Definition rw :=
+    emit (relmapii rel d.(arg).(bi) isel d.(chunks)).
+End InstSelection.

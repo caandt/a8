@@ -16,21 +16,21 @@ type config = {
 let serialize_dat (d:CFI.Rewriter.data) : Yojson.Basic.t =
   let ji x = `Int (toint x) in
   `Assoc [
-    ("bi", ji d.bi);
-    ("bi'", ji d.bi');
+    ("bi", ji d.arg.bi);
+    ("bi'", ji d.arg.bi');
     ("bti", ji d.bti);
     ("ai", ji d.ai);
-    ("len", `Int (List.length d.code));
+    ("len", `Int (List.length d.arg.code));
     ("devs", `List (List.map ji d.devs));
-    ("dsets", `List (List.map (fun d -> `List (List.map ji d)) d.dsets));
+    ("dsets", `List (List.map (fun d -> `List (List.map ji d)) d.arg.dsets));
     ("tc", `List (List.map (fun ((h, tbl), ti) -> `Assoc [
       ("hash", match h with H_UBFX (a, b) -> `List [ji a; ji b] | H_EOR_UBFX (a, b, c) -> `List [ji a; ji b; ji c]);
       ("tbl", `List (List.map ji tbl));
       ("ti", ji ti);
     ]) d.tc));
-    ("pol", `List (List.init (List.length d.code) ((+) (toint d.bi)) |>
+    ("pol", `List (List.init (List.length d.arg.code) ((+) (toint d.arg.bi)) |>
       List.filter_map (fun i ->
-        let lbl = d.pol (of_int i) in
+        let lbl = d.arg.pol (of_int i) in
         if lt lbl (List.length d.tc |> of_int)
         then Some (`List [`Int i; ji lbl])
         else None)));
@@ -53,6 +53,7 @@ let main args =
   let bin = In_channel.with_open_bin args.input In_channel.input_all in
   let bin = [Pstring.unsafe_of_string bin] in
   let runtime = [Pstring.unsafe_of_string args.runtime] in
+  let nrelax = to_nat 3 in
   let getpol () = (match args.pol with
     | None -> Util.default_pol args.input
     | Some p -> Policy.read_policy args.input p), "Error reading policy" in
@@ -61,12 +62,12 @@ let main args =
     let* pol, dsets = getpol () in
     let* dat = global_data ~pol ~dsets args.input, "Error getting data" in
     Ok (Option.iter (fun file -> Yojson.Basic.to_file file (serialize_dat dat)) args.json)
-  else if args.polhook then
-    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime, "Error rewriting" in
-    save args bin' dat
+  (* else if args.polhook then *)
+  (*   let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime, "Error rewriting" in *)
+  (*   save args bin' dat *)
   else
     let* pol, dsets = getpol () in
-    let* bin', dat = CFI.Rewriter.elf_rw (fun _ _ x -> x) bin pol dsets runtime, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw bin runtime pol dsets nrelax, "Error rewriting" in
     save args bin' dat
 
 let input =

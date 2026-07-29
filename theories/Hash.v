@@ -18,11 +18,6 @@ Section Hashing.
     | H_UBFX lsb width => λ v, (v >> lsb) mod (1 << width)
     | H_EOR_UBFX shift lsb width => λ v, ((v lxor (v >> shift)) >> lsb) mod (1 << width)
     end.
-  Definition hash_code h r :=
-    match h with
-    | H_UBFX lsb width => [Asm.UBFX true r r lsb width]
-    | H_EOR_UBFX shift lsb width => [Asm.EOR_lsr r r r shift; Asm.UBFX true r r lsb width]
-    end.
   Fixpoint valid_hash h D D' s :=
     match D, D' with
     | i::t, i'::t' =>

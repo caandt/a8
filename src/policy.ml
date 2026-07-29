@@ -86,9 +86,9 @@ let read_policy bpath ppath =
   let devs = devs_array (List.map toint d.devs) in
   let irel = irel devs in
   let pol' x =
-    let ret = Option.value ~default:(of_int 999999999) (CFI.Rewriter.index (=) d.rets x zero) in
-    ret |> to_int64 |> pol |> of_int in
+    let ret = Option.value ~default:999999999 (List.find_index ((=) x) d.rets) in
+    ret |> Int64.of_int |> pol |> of_int in
   let dsets = List.map (List.map (fun x ->
-    (Int64.sub (Int64.shift_right x 2) (to_int64 d.bi')) |> Int64.to_int |> irel |> of_int |> add d.bi
+    (Int64.sub (Int64.shift_right x 2) (to_int64 d.arg.bi')) |> Int64.to_int |> irel |> of_int |> add d.arg.bi
   )) dsets in
   Some (pol', dsets)
