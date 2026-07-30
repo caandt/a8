@@ -34,6 +34,19 @@ Definition instsize inst :=
   | Itbl _ _ | Ihsh _ _ => 2
   | Iimm sz _ _ | Ib sz _ _ => intsize sz
   end.
+Record chunk A := C {
+  cn: int;
+  ci: int;
+  ct: ityp;
+  cd: A;
+}.
+Notation chunklist A := (list (chunk A)).
+Arguments cn {_}.
+Arguments ci {_}.
+Arguments ct {_}.
+Arguments cd {_}.
+Arguments C {_}.
+
 Record args := {
   code: list int;
   pol: int → int;
@@ -44,7 +57,7 @@ Record args := {
   rtlen: int;
 }.
 Record data := {
-  chunks: list (list cinst);
+  chunks: chunklist (list cinst);
   rel: int → int;
   ai: int;
   bti: int;
@@ -53,8 +66,13 @@ Record data := {
   rets: list int;
   devs: list int;
 }.
-Definition relmapii {A} rel bi (f: int -> cinst -> A) l :=
-  mapi (λ i, mapisz instsize (λ j, f (rel (bi + i) + j))) l.
+Definition setd{A B} (c: chunk A) (d: B) := C c.(cn) c.(ci) c.(ct) (d).
+Definition chunkmapi{A} rel (f: int -> cinst -> A) l :=
+  map (λ c,
+    let i := rel c.(ci) in
+    let g j := f (i+j) in
+    setd c (mapisz instsize g c.(cd))
+  ) l.
 Section ChunkGeneration.
   Variable a : args.
   Notation pol := a.(pol).
@@ -81,7 +99,7 @@ Section ChunkGeneration.
           ; Inum n ]
       end.
     Definition rw_inst :=
-      match t with
+      C n i t match t with
       | ignore => [Inum n]
       | invalid => [Ib Sz1 (BL 0) (Rrt 0)]
       | ADR imm Rd => [Iimm Sz2 Rd ((i<<2)+sext imm 21)]
@@ -93,7 +111,7 @@ Section ChunkGeneration.
       end.
   End InstRewriter.
   Section Relaxation.
-    Definition chunksize chunk := fold_left add (map_single instsize chunk) 0.
+    Definition chunksize c := fold_left add (map_single instsize c.(cd)) 0.
     Definition makerel chunks :=
       let lens := map chunksize chunks in
       let idxs := csum bi' lens in
@@ -121,10 +139,10 @@ Section ChunkGeneration.
       end.
     Definition relax chunks :=
       let rel := makerel chunks in
-      relmapii rel bi (relaxi rel) chunks.
+      chunkmapi rel (relaxi rel) chunks.
   End Relaxation.
-  Definition makechunks :=
-    let c := mapi rw_inst a.(code) in
+  Definition makechunks hook :=
+    let c := hook (mapi rw_inst a.(code)) in
     Nat.iter a.(nrelax) relax (c).
   Definition compute_tables rel ai bti dsets :=
     maybe_map (λ D,
@@ -152,19 +170,42 @@ Section ChunkGeneration.
         if size =? 1 then deviations (idx+1) next_cum_dev t
         else idx::next_cum_dev::deviations (idx+1) next_cum_dev t
     end.
-  Definition makedata :=
-    let chunks := makechunks in
+  Definition makedata hook :=
+    let chunks := makechunks hook in
     let rel := makerel chunks in
     let ai := pad_to (rel (bi + len a.(code))) 10 in
-    let bti := pad_to (ai + a.(rtlen)) 10 in
+    let bti := pad_to (ai + a.(rtlen)>>2) 10 in
     let rets := retlist a.(code) 0 [] in
     let devs := deviations 0 0 (map chunksize chunks) in
     tc ← compute_tables rel ai bti dsets;
     return {|
       arg := a; chunks := chunks; rel := rel;
       ai := ai; bti := bti; tc := tc;
-      rets := rets; devs := devs
+      rets := rets; devs := devs;
     |}.
+  Section PolHook.
+    Fixpoint index{A} {eqd : EqDecision A} l x i :=
+      match l with
+      | nil => None
+      | a::t => if eqd a x then Some i else index t x (succ i)
+      end.
+    Definition call_polhook (rets:list int) n i Rn :=
+      [ Inum (Asm.PUSH2 Rn 30)
+      ; Inum (Asm.PUSH2 0 1)
+      ; Iimm Sz2 0 (index rets i 0 orelse 0)
+      ; Ib Sz1 (BL 0) (Rrt 2)
+      ; Inum (Asm.POP2 Rn (30 + (Rn =? 30)))
+      ; Inum n ].
+    Definition hook_indirect rets c :=
+      match c.(ct) with
+      | BR Rn | BLR Rn | RET Rn =>
+          setd c (call_polhook rets c.(cn) c.(ci) Rn)
+      | _ => c
+      end.
+    Definition polhook :=
+      let rets := retlist a.(code) 0 [] in
+      map (hook_indirect rets).
+  End PolHook.
 End ChunkGeneration.
 Section InstSelection.
   Variable d : data.
@@ -204,9 +245,9 @@ Section InstSelection.
                (Asm.Encode.MOVK 1 0 (imm land 0xffff) r)
         else Lst0
     | Ib Sz1 (B _) (Raddr d) =>
-        (Lst1 <$> Asm.B i' (rel d)) orelse Lst0
+        (Lst1 <$> Asm.B i' (rel d)) orelse (Lst1 Asm.UDF)
     | Ib Sz1 (BL _) (Raddr d) =>
-        (Lst1 <$> Asm.BL i' (rel d)) orelse (Lst1 0)
+        (Lst1 <$> Asm.BL i' (rel d)) orelse (Lst1 Asm.UDF)
     | Ib Sz1 (BL _) (Rrt n) =>
         (Lst1 <$> Asm.BL i' (ai+n)) orelse (Lst1 Asm.UDF)
     | Ib Sz1 (Bcond _ cond) (Raddr d) =>
@@ -227,16 +268,16 @@ Section InstSelection.
     | _ => Lst0
     end.
   Definition emit chunks :=
-    maybe_map (λ chunk,
-      @rev int <$> fold_left (λ a s,
+    maybe_map (λ c,
+      fold_left (λ a s,
         match a, s with
         | Some l, Lst1 a => Some (a::l)
         | Some l, Lst2 a b => Some (b::a::l)
         | Some l, Lst3 a b c => Some (c::b::a::l)
         | _, _ => None
         end)
-      chunk (Some nil)
+      (c.(cd)) (Some nil) <&> @rev int <&> setd c
     ) chunks.
   Definition rw :=
-    emit (relmapii rel d.(arg).(bi) isel d.(chunks)).
+    emit (chunkmapi rel isel d.(chunks)).
 End InstSelection.

@@ -25,6 +25,10 @@ type hash = [%import: CFI.Rewriter.hash] [@@deriving show]
 type isize = [%import: CFI.Rewriter.isize] [@@deriving show]
 type reloc = [%import: CFI.Rewriter.reloc] [@@deriving show]
 type cinst = [%import: CFI.Rewriter.cinst] [@@deriving show]
+type 'a chunk = [%import: 'a CFI.Rewriter.chunk] [@@deriving show]
+type nat = [%import: CFI.Rewriter.nat] [@@deriving show]
+type args = [%import: CFI.Rewriter.args] [@@deriving show]
+type data = [%import: CFI.Rewriter.data] [@@deriving show]
 
 let vdso = List.map (lsr2 % of_int) [0x7ff7ffe320;0x7ff7ffe820;0x7ff7ffe5c0;0x7ff7ffe808;0x7ff7ffe770]
 
@@ -48,4 +52,4 @@ let global_data ?(pol=Fun.id) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) pa
   let nrelax = to_nat nrelax in
   let rtlen = String.length runtime |> of_int in
   let d : CFI.Rewriter.args = { code; pol; dsets; bi; bi'; nrelax; rtlen; } in
-  CFI.Rewriter.makedata d
+  CFI.Rewriter.makedata d Fun.id

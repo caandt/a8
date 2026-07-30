@@ -138,9 +138,9 @@ Function range step i n {measure to_nat n} :=
 Proof. lia. Defined.
 Definition phdr_offsets := range 56.
 Definition to_words sl := map (getu32 sl) (range 4 0 (length sl >> 2)).
-Definition of_chunks32 lli := map (λ x, of_list (List.concat (map_single u32 x))) lli.
-Definition of_chunks64 lli := map (λ x, of_list (List.concat (map_single u64 x))) lli.
-Definition of_chunks64' lli := flat_map (λ x, (map (λ y, of_list (u64 y)) x)) lli.
+Definition of_chunks32 := map (λ x, of_list (List.concat (map_single u32 x.(cd)))).
+Definition of_chunks64 := map (λ x, of_list (List.concat (map_single u64 x))).
+Definition of_chunks64' := flat_map (λ x, (map (λ y, of_list (u64 y)) x)).
 Definition parse_phdr bin ehdr :=
   let n := ehdr.(e_phnum) in
   assert negb (n =? 0xffff);
@@ -235,7 +235,7 @@ Definition rtd d entry :=
     d.(devs)
   ).
 
-Definition elf_rw bin runtime pol dsets nrelax :=
+Definition elf_rw hook bin runtime pol dsets nrelax :=
   elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
@@ -246,7 +246,7 @@ Definition elf_rw bin runtime pol dsets nrelax :=
     pol := pol; dsets := dsets; nrelax := nrelax;
     rtlen := length runtime;
   |} in
-  d' ← makedata arg;
+  d' ← makedata arg (hook arg);
   code' ← rw d';
   let entry_i := d'.(rel) (elf.(ehdr).(e_entry) >> 2) in
   let rtd := rtd d' (entry_i << 2) in
@@ -256,7 +256,8 @@ Definition elf_rw bin runtime pol dsets nrelax :=
   let pad1 := padding (length code') 12 in
   let pad2 := padding (arg.(rtlen)) 12 in
   let pad3 := padding (length tables) 12 in
-  let runtime := splice (runtime) 12 [of_list (u64 ((d'.(bti) << 2) + length tables + pad3))] in
+  let rtda := d'.(bti) << 2 + length tables + pad3 in
+  let runtime := splice (runtime) 12 [of_list (u64 rtda)] in
   let content :=
     code' ++ [make pad1 0] ++
     runtime ++ [make pad2 0] ++
@@ -264,3 +265,5 @@ Definition elf_rw bin runtime pol dsets nrelax :=
     rtd in
   bin' ← replace_code ((set_nx elf).(data)) content (bi'<<2) (d'.(ai) << 2 + 4);
   return (bin', d').
+Definition elf_rw_polhook bin runtime nrelax :=
+  elf_rw polhook bin runtime (const 0) [] nrelax.
