@@ -15,6 +15,7 @@ Notation "'return' x " := (mret x) (at level 10000).
 Definition asrt (x:bool) : option unit := if x then Some tt else None.
 Notation "'assert' x ; f" := (_ ← asrt x; f) (at level 100).
 Notation "x 'orelse' y" := (default y x) (at level 10).
+Definition issome {A} (x: option A) := if x then true else false.
 
 Fixpoint _mapi {A B} sz acc i f (l: list A) : list B :=
   match l with

@@ -246,8 +246,8 @@ Definition elf_rw hook bin runtime pol dsets nrelax :=
     pol := pol; dsets := dsets; nrelax := nrelax;
     rtlen := length runtime;
   |} in
-  d' ← makedata arg (hook arg);
-  code' ← rw d';
+  d' ← rw_hook arg hook;
+  code' ← rw2 d';
   let entry_i := d'.(rel) (elf.(ehdr).(e_entry) >> 2) in
   let rtd := rtd d' (entry_i << 2) in
   let code' := of_chunks32 code' in

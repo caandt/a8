@@ -37,7 +37,6 @@ Section Hashing.
       else None.
     Proof. lia. Defined.
   End find_valid.
-  Definition issome {A} (x: option A) := if x then true else false.
   Definition find_ubfx_lsb width D D' := find_valid 32 (λ lsb, valid_hash (H_UBFX lsb width) D D' MSet.empty) 0.
   Definition find_ubfx_width D D' := find_valid 12 (λ width, issome (find_ubfx_lsb width D D')) 3.
   Definition find_eorubfx_lsb shift width D D' := find_valid 32 (λ lsb, valid_hash (H_EOR_UBFX shift lsb width) D D' MSet.empty) 0.

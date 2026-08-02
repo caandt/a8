@@ -44,12 +44,15 @@ let default_pol path =
   let dset = List.init (List.length code) (fun x -> add bi (of_int x)) in
   Some (pol, [vdso @ dset])
 
-let global_data ?(pol=Fun.id) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) path =
+let make_args ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) path =
   let^ elf = Packager.load path in
   let^ code, va = Packager.get_text elf in
   let bi = lsr2 va in
   let bi' = Packager.get_after elf |> lsr2 in
   let nrelax = to_nat nrelax in
   let rtlen = String.length runtime |> of_int in
-  let d : CFI.Rewriter.args = { code; pol; dsets; bi; bi'; nrelax; rtlen; } in
-  CFI.Rewriter.makedata d Fun.id
+  Some { code; pol; dsets; bi; bi'; nrelax; rtlen; }
+
+let global_data ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) ?(hook=Fun.id) path =
+  let^ a = make_args ~pol ~dsets ~runtime ~nrelax path in
+  CFI.Rewriter.rw_hook a hook

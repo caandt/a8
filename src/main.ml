@@ -67,7 +67,7 @@ let main args =
     save args bin' dat
   else
     let* pol, dsets = getpol () in
-    let* bin', dat = CFI.Rewriter.elf_rw (fun _ a -> a) bin runtime pol dsets nrelax, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax, "Error rewriting" in
     save args bin' dat
 
 let input =
