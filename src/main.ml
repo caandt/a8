@@ -51,8 +51,8 @@ let save args bin' (dat: CFI.Rewriter.data) =
 
 let main args =
   let bin = In_channel.with_open_bin args.input In_channel.input_all in
-  let bin = [Pstring.unsafe_of_string bin] in
-  let runtime = [Pstring.unsafe_of_string args.runtime] in
+  let bin = to_strl bin in
+  let runtime = to_strl args.runtime in
   let nrelax = to_nat 3 in
   let getpol () = (match args.pol with
     | None -> Util.default_pol args.input

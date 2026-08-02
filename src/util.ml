@@ -56,3 +56,14 @@ let make_args ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax
 let global_data ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) ?(hook=Fun.id) path =
   let^ a = make_args ~pol ~dsets ~runtime ~nrelax path in
   CFI.Rewriter.rw_hook a hook
+
+let to_strl s =
+  let len = String.length s in
+  let slen = toint Pstring.max_length in
+  let rec aux i acc =
+    if i >= len then List.rev acc
+    else
+      let sublen = min slen (len - i) in
+      let str = String.sub s i sublen |> Pstring.of_string |> Option.get in
+      aux (i + slen) (str::acc)
+  in aux 0 []
