@@ -2,7 +2,7 @@ Require Export Uint63 List Bool Recdef Lia ZifyUint63.
 Require Import Orders MSetRBT ZArith.
 From stdpp Require Import countable gmap.
 From stdpp Require Export option.
-Require PArray PrimString.
+Require AArray PrimString.
 Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
 Open Scope uint63.
 
@@ -40,6 +40,7 @@ Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
   else _list_of_array arr (arr.[n]::lst) (n-1).
 Proof. lia. Defined.
 Definition list_of_array{T} arr := if (PArray.length arr =? 0) then nil else _list_of_array T arr nil (PArray.length arr - 1).
+Definition list_of_aarray{T} arr := concat (map list_of_array (list_of_array (@AArray.subarrs T arr))).
 Fixpoint _array_of_list{T} (arr: array T) n lst :=
   match lst with
   | nil => arr
@@ -69,10 +70,10 @@ Extract Constant print_int => "(fun x -> print_int (Int64.to_int (Uint63.to_int6
 
 Definition csum base lst :=
   let len := len lst in
-  let arr := PArray.make (len+1) 0 in
-  let f '(a, b, i) x := (a.[i<-b], b+x, i+1) in
+  let arr := AArray.make (len+1) 0 in
+  let f '(a, b, i) x := (AArray.set a i b, b+x, i+1) in
   let '(res, b, i) := fold_left f lst (arr, base, 0) in
-  res.[i<-b].
+  AArray.set res i b.
 Fixpoint csum_fix base lst :=
   match lst with
   | nil => nil

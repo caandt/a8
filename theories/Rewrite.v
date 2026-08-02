@@ -119,7 +119,7 @@ Section ChunkGeneration.
       let idxs := csum bi' lens in
       let ei := bi + len chunks in
       λ x, if (bi <=? x) && (x <=? ei)
-           then PArray.get idxs (x - bi)
+           then AArray.get idxs (x - bi)
            else x.
     Definition fits bw n := (lesb (-1<<(bw-1)) n) && (ltsb n (1<<(bw-1))).
     Definition relaxi rel i' inst :=
@@ -151,7 +151,7 @@ Section ChunkGeneration.
       (h, Hash.compute_table_a h ai D D')
     ) dsets <&> λ l,
       let lens := map (λ x, len (snd x) << 1) l in
-      combine l (list_of_array (csum bti lens)).
+      combine l (list_of_aarray (csum bti lens)).
   Definition indirect_reg{A} c :=
     match c.(ct A) with
     | BR Rn | BLR Rn | RET Rn => Some Rn
