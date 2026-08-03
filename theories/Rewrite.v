@@ -57,6 +57,7 @@ Record args := {
   bi': int;
   nrelax: nat;
   rtlen: int;
+  orig_lr: bool;
 }.
 Record data := {
   chunks: chunklist (list cinst);
@@ -106,7 +107,13 @@ Section ChunkGeneration.
       | ADR imm rd => [Iimm Sz2 rd (Rimm ((i<<2)+sext imm 21))]
       | ADRP imm rd => [Iimm Sz3 rd (Rimm (clearlow12 (i<<2)+sext (imm<<12) 33))]
       | Bcond imm _ | CBZ _ _ imm _ => [Ib Sz2 t (Raddr (i+sext imm 19))]
-      | B imm | BL imm => [Ib Sz1 t (Raddr (i+sext imm 26))]
+      | B imm => [Ib Sz1 t (Raddr (i+sext imm 26))]
+      | BL imm =>
+          if a.(orig_lr) then
+            [ Iimm Sz3 30 (Rimm ((i+1)<<2))
+            ; Ib Sz1 (B imm) (Raddr (i+sext imm 26)) ]
+          else
+            [Ib Sz1 t (Raddr (i+sext imm 26))]
       | TBZ _ _ _ imm _ => [Ib Sz2 t (Raddr (i+sext imm 14))]
       | BR rn | BLR rn | RET rn => rw_indirect rn
       end.
@@ -230,8 +237,8 @@ Section InstSelection.
 
     | Iimm Sz1 r reloc =>
         let imm := resolve reloc in
-        (Lst1 <$> Asm.ADRP i' imm r) orelse
-        ((Lst1 <$> Asm.ADR i' imm r) orelse Lst0)
+        let asm := if clearlow12 imm =? imm then Asm.ADRP else Asm.ADR in
+        (Lst1 <$> asm i' imm r) orelse Lst0
     | Iimm Sz2 r reloc =>
         let imm := resolve reloc in
         if fits 21 (asr imm 12-i'>>10) then

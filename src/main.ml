@@ -63,11 +63,11 @@ let main args =
     let* dat = global_data ~pol ~dsets args.input, "Error getting data" in
     Ok (Option.iter (fun file -> Yojson.Basic.to_file file (serialize_dat dat)) args.json)
   else if args.polhook then
-    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime nrelax, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime nrelax true, "Error rewriting" in
     save args bin' dat
   else
     let* pol, dsets = getpol () in
-    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax true, "Error rewriting" in
     save args bin' dat
 
 let input =

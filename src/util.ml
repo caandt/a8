@@ -51,7 +51,7 @@ let make_args ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax
   let bi' = Packager.get_after elf |> lsr2 in
   let nrelax = to_nat nrelax in
   let rtlen = String.length runtime |> of_int in
-  Some { code; pol; dsets; bi; bi'; nrelax; rtlen; }
+  Some { code; pol; dsets; bi; bi'; nrelax; rtlen; orig_lr = true }
 
 let global_data ?(pol=Fun.const zero) ?(dsets=[]) ?(runtime=Runtime.base) ?(nrelax=3) ?(hook=Fun.id) path =
   let^ a = make_args ~pol ~dsets ~runtime ~nrelax path in

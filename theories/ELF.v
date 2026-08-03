@@ -244,7 +244,7 @@ Definition rtd d entry :=
     d.(devs)
   ).
 
-Definition elf_rw hook bin runtime pol dsets nrelax :=
+Definition elf_rw hook bin runtime pol dsets nrelax orig_lr :=
   elf ← parse_elf bin;
   ts ← txt_seg elf;
   let code := phdr_content elf ts in
@@ -253,7 +253,7 @@ Definition elf_rw hook bin runtime pol dsets nrelax :=
   let arg := {|
     bi := bi; bi' := bi'; code := to_words code;
     pol := pol; dsets := dsets; nrelax := nrelax;
-    rtlen := length runtime;
+    rtlen := length runtime; orig_lr := orig_lr;
   |} in
   d' ← rw_hook arg hook;
   code' ← rw2 d';
