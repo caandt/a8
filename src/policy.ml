@@ -35,18 +35,24 @@ let read_policy path =
     close_in_noerr chan;
     raise exn
 
-let inv lst t =
-  let rec aux i sum = function
-    | [] -> i
-    | x :: xs ->
-        let next_sum = add sum x in
-        if lt t next_sum then i
-        else aux (add one i) next_sum xs
-  in aux zero zero lst
+let rec fill arr i j = function
+  | [] -> ()
+  | x :: xs ->
+      let x = toint x in
+      for k = 0 to x - 1 do
+        arr.(i+k) <- j
+      done;
+      fill arr (i+x) (add one j) xs
 
-let irel d i' =
+let irel d =
   let lens = List.map CFI.Rewriter.chunksize d.chunks in
-  add d.arg.bi (inv lens (sub i' d.arg.bi'))
+  let alen = List.fold_left add zero lens |> toint in
+  let arr = Array.make alen zero in
+  fill arr 0 d.arg.bi lens;
+  print_endline "filled";
+  fun i' ->
+    let i = sub i' d.arg.bi' |> toint in
+    if 0 <= i && i < alen then arr.(i) else i'
 
 let read_policy bpath ppath =
   let^ d = global_data ~runtime:Runtime.polhook ~hook:CFI.Rewriter.polhook bpath in
