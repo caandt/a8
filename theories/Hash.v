@@ -1,6 +1,6 @@
 Require Import Util.
 Require Asm.
-Require Import ZArith Orders Lia ZifyUint63 MSetRBT PArray.
+Require Import ZArith Orders Lia ZifyUint63 MSetRBT.
 Import ListNotations.
 
 Section Hashing.
@@ -59,14 +59,6 @@ Section Hashing.
 End Hashing.
 
 Section Table.
-  Fixpoint assign_table h a D D' :=
-    match D, D' with
-    | i::t, i'::t' =>
-        assign_table h a.[hash_func h (4*i)<-4*i'].[hash_func h (4*i')<-4*i'] t t'
-    | _, _ => a
-    end.
-  Definition compute_table_a h ai D D' :=
-    list_of_array (assign_table h (make (hash_size h) (4*ai)) D D').
   Definition compute_table_m h ai D D' :=
     let entries := (map_single (λ '(i, i'), (hash_func h (4*i), 4*i')) (combine D D')) in
     let entries' := (map_single (λ i', (hash_func h (4*i'), 4*i')) D') in

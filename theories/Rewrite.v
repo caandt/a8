@@ -116,10 +116,11 @@ Section ChunkGeneration.
     Definition chunksize c := fold_left add (map_single instsize c.(cd)) 0.
     Definition makerel chunks :=
       let lens := map chunksize chunks in
-      let idxs := csum bi' lens in
+      let csum := csum bi' lens in
+      let rel x := csum (x - bi) in
       let ei := bi + len chunks in
       λ x, if (bi <=? x) && (x <=? ei)
-           then AArray.get idxs (x - bi)
+           then rel x
            else x.
     Definition fits bw n := (lesb (-1<<(bw-1)) n) && (ltsb n (1<<(bw-1))).
     Definition relaxi rel i' inst :=
@@ -148,10 +149,11 @@ Section ChunkGeneration.
     maybe_map (λ D,
       let D' := map_single rel D in
       Hash.find_hash D D' <&> λ h,
-      (h, Hash.compute_table_a h ai D D')
+      (h, Hash.compute_table_m h ai D D')
     ) dsets <&> λ l,
-      let lens := map (λ x, len (snd x) << 1) l in
-      combine l (list_of_aarray (csum bti lens)).
+      fst (fold_left (λ '(acc, ti) '(h, tbl),
+        ((h, tbl, ti)::acc, ti + len tbl)
+      ) l ([], bti)).
   Definition indirect_reg{A} c :=
     match c.(ct A) with
     | BR Rn | BLR Rn | RET Rn => Some Rn

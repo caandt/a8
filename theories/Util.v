@@ -2,8 +2,8 @@ Require Export Uint63 List Bool Recdef Lia ZifyUint63.
 Require Import Orders MSetRBT ZArith.
 From stdpp Require Import countable gmap.
 From stdpp Require Export option.
-Require AArray PrimString.
-Export PArray.PArrayNotations PArray(array) PrimString.PStringNotations PrimString(string).
+Require PrimString.
+Export PrimString.PStringNotations PrimString(string).
 Open Scope uint63.
 
 Definition xb (n i j: int) := (n >> i) land (1 << (j - i) - 1).
@@ -32,21 +32,7 @@ Definition maybe_map {A B} (f:A->option B) l := mapfold (maybe_op cons) f l (Som
 
 Definition len {A} (l:list A) := of_nat (List.length l).
 Definition ith {A} (l:list A) n := List.nth_error l (to_nat n).
-Extract Constant ith => "(fun l n -> List.nth_opt l (Uint63.to_int2 n |>snd))".
-
-Function _list_of_array{T} (arr: array T) lst n {measure to_nat n} :=
-  if (n =? 0)
-  then arr.[n]::lst
-  else _list_of_array arr (arr.[n]::lst) (n-1).
-Proof. lia. Defined.
-Definition list_of_array{T} arr := if (PArray.length arr =? 0) then nil else _list_of_array T arr nil (PArray.length arr - 1).
-Definition list_of_aarray{T} arr := concat (map list_of_array (list_of_array (@AArray.subarrs T arr))).
-Fixpoint _array_of_list{T} (arr: array T) n lst :=
-  match lst with
-  | nil => arr
-  | a::t => _array_of_list arr.[n<-a] (n+1) t
-  end.
-Definition array_of_list{T} d (lst: list T) := _array_of_list (PArray.make (len lst) d) 0 lst.
+Extract Constant ith => "(fun l n -> List.nth_opt l (Uint63.to_int2 n |> snd))".
 
 Function init n (x:int) {measure to_nat n} :=
   if (n =? 0) then nil else x::init (n-1) x.
@@ -68,17 +54,28 @@ Extract Constant print_endline => "(fun x -> print_endline (Pstring.to_string x)
 Axiom print_int : int -> unit.
 Extract Constant print_int => "(fun x -> print_int (Int64.to_int (Uint63.to_int64 x)))".
 
-Definition csum base lst :=
-  let len := len lst in
-  let arr := AArray.make (len+1) 0 in
-  let f '(a, b, i) x := (AArray.set a i b, b+x, i+1) in
-  let '(res, b, i) := fold_left f lst (arr, base, 0) in
-  AArray.set res i b.
-Fixpoint csum_fix base lst :=
+Fixpoint csum sum lst n :=
   match lst with
-  | nil => nil
-  | a::t => base::csum_fix (base+a) t
+  | nil => sum
+  | a::t =>
+      if n =? 0
+      then sum
+      else csum (a + sum) t (n - 1)
   end.
+Extract Constant csum => "(fun sum lst ->
+  let arr = Array.of_list lst in
+  let n = Array.length arr in
+  let table = Array.make n Uint63.zero in
+  let acc = ref sum in
+  for i = 0 to n - 1 do
+    table.(i) <- !acc;
+    acc := Uint63.add arr.(i) !acc
+  done;
+  fun x ->
+    let i = x |> Uint63.to_int2 |> snd in
+    if i < n then table.(i)
+    else !acc
+)".
 
 Definition sext n w := asr (n << (63 - w)) (63 - w).
 Definition padding x b := (1 << b - x land (1 << b - 1)) land (1 << b - 1).
