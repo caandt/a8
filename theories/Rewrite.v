@@ -151,9 +151,9 @@ Section ChunkGeneration.
       Hash.find_hash D D' <&> λ h,
       (h, Hash.compute_table_m h ai D D')
     ) dsets <&> λ l,
-      fst (fold_left (λ '(acc, ti) '(h, tbl),
-        ((h, tbl, ti)::acc, ti + len tbl)
-      ) l ([], bti)).
+      rev (fst (fold_left (λ '(acc, ti) '(h, tbl),
+        ((h, tbl, ti)::acc, ti + 2 * len tbl)
+      ) l ([], bti))).
   Definition indirect_reg{A} c :=
     match c.(ct A) with
     | BR Rn | BLR Rn | RET Rn => Some Rn
