@@ -22,6 +22,15 @@ Definition PT_LOAD := 1.
 Definition PT_NOTE := 4.
 Definition PF_RX := 5.
 
+Definition uu64 := of_list ∘ u64.
+Extract Constant uu64 => "(fun n ->
+  let n = n |> Uint63.to_int2 |> snd in
+  let s = Bytes.create 8 in
+  for i = 0 to 7 do
+    Bytes.set s i (Char.chr ((n lsr (8 * i)) land 0xff))
+  done;
+  Pstring.unsafe_of_string (Bytes.unsafe_to_string s)
+)".
 Record Eident := {
   ei_mag: int;
   ei_class: int;
@@ -139,8 +148,8 @@ Proof. lia. Defined.
 Definition phdr_offsets := range 56.
 Definition to_words sl := map (getu32 sl) (range 4 0 (length sl >> 2)).
 Definition of_chunks32 := map (λ x, of_list (List.concat (map_single u32 x.(cd)))).
-Definition of_chunks64 := map (λ x, of_list (List.concat (map_single u64 x))).
-Definition of_chunks64' := flat_map (λ x, (map (λ y, of_list (u64 y)) x)).
+Definition of_chunks64 l := List.concat (map (λ x, (map_single uu64 x)) l).
+Definition of_chunks64' := flat_map (λ x, (map (λ y, uu64 y) x)).
 Definition parse_phdr bin ehdr :=
   let n := ehdr.(e_phnum) in
   assert negb (n =? 0xffff);
