@@ -11,6 +11,7 @@ type config = {
   runtime: string;
   json: string option;
   onlyjson: bool;
+  lr: bool;
 }
 
 let serialize_dat (d:CFI.Rewriter.data) : Yojson.Basic.t =
@@ -63,11 +64,11 @@ let main args =
     let* dat = global_data ~pol ~dsets args.input, "Error getting data" in
     Ok (Option.iter (fun file -> Yojson.Basic.to_file file (serialize_dat dat)) args.json)
   else if args.polhook then
-    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime nrelax true, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime nrelax args.lr, "Error rewriting" in
     save args bin' dat
   else
     let* pol, dsets = getpol () in
-    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax true, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax args.lr, "Error rewriting" in
     save args bin' dat
 
 let input =
@@ -98,16 +99,19 @@ let polhook =
 let json =
   let doc = "Dump JSON data to $(docv), or dump to OUTPUT and exit if $(docv) is \"only\"" in
   Arg.(value & opt (some string) None & info ["j"; "json"] ~docv:"FILE" ~doc)
+let lr =
+  let doc = "Rewrite BL to link the original address" in
+  Arg.(value & flag & info ["L"; "lr"] ~doc)
 let config =
-  let make input output runtime pol update_symbols polhook json =
+  let make input output runtime pol update_symbols polhook json lr =
     let output = Option.value output ~default:(input ^ "_rw") in
     let runtime = Option.fold runtime
       ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all)
       ~none:(if polhook then Runtime.polhook else Runtime.base) in
     let onlyjson = json = Some "only" in
     let json = if json = Some "only" then Some output else json in
-    { input; output; update_symbols; polhook; runtime; pol; json; onlyjson; } in
-  Term.(const make $ input $ output $ abort $ policy $ update_symbols $ polhook $ json)
+    { input; output; update_symbols; polhook; runtime; pol; json; onlyjson; lr } in
+  Term.(const make $ input $ output $ abort $ policy $ update_symbols $ polhook $ json $ lr)
 let cmd =
   let term = Term.(const main $ config) in
   let info = Cmd.info "a64-cfi" ~doc:"CFI rewriter for AArch64" in
