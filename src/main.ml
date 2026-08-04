@@ -55,20 +55,23 @@ let main args =
   let bin = to_strl bin in
   let runtime = to_strl args.runtime in
   let nrelax = to_nat 3 in
-  let getpol () = (match args.pol with
+  let getpol () = (
+    if args.polhook then Some (Fun.const zero, []) else
+    match args.pol with
     | None -> Util.default_pol args.input
-    | Some p -> Policy.read_policy args.input p), "Error reading policy" in
+    | Some p -> Policy.read_policy args.input p
+  ), "Error reading policy" in
+  let hook =
+    if args.polhook then CFI.Rewriter.polhook2
+    else Fun.id in
 
   if args.onlyjson then
     let* pol, dsets = getpol () in
     let* dat = global_data ~pol ~dsets args.input, "Error getting data" in
     Ok (Option.iter (fun file -> Yojson.Basic.to_file file (serialize_dat dat)) args.json)
-  else if args.polhook then
-    let* bin', dat = CFI.Rewriter.elf_rw_polhook bin runtime nrelax args.lr, "Error rewriting" in
-    save args bin' dat
   else
     let* pol, dsets = getpol () in
-    let* bin', dat = CFI.Rewriter.elf_rw Fun.id bin runtime pol dsets nrelax args.lr, "Error rewriting" in
+    let* bin', dat = CFI.Rewriter.elf_rw hook bin runtime pol dsets nrelax args.lr, "Error rewriting" in
     save args bin' dat
 
 let input =
@@ -107,7 +110,7 @@ let config =
     let output = Option.value output ~default:(input ^ "_rw") in
     let runtime = Option.fold runtime
       ~some:(fun x -> In_channel.with_open_bin x In_channel.input_all)
-      ~none:(if polhook then Runtime.polhook else Runtime.base) in
+      ~none:(if polhook then Runtime.polhook2 else Runtime.base) in
     let onlyjson = json = Some "only" in
     let json = if json = Some "only" then Some output else json in
     { input; output; update_symbols; polhook; runtime; pol; json; onlyjson; lr } in

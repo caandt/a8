@@ -198,16 +198,18 @@ Section ChunkGeneration.
       | nil => None
       | a::t => if eqd a x then Some i else index t x (succ i)
       end.
-    Definition call_polhook{A} rets c Rn :=
+    Definition call_polhook{A} f c Rn :=
       [ Inum (Asm.PUSH2 Rn 30)
-      ; Inum (Asm.PUSH2 0 1)
-      ; Iimm Sz2 0 (Rimm (index rets c.(ci A) 0 orelse 0))
-      ; Ib Sz1 (BL 0) (Rrt 2)
+      ; Inum (Asm.PUSH2 0 1) ] ++ f c ++
+      [ Ib Sz1 (BL 0) (Rrt 2)
       ; Inum (Asm.POP2 Rn (30 + (Rn =? 30)))
-      ; Inum c.(cn) ].
+      ; Inum c.(cn A) ].
     Definition polhook chunks :=
       let rets := retlist chunks in
-      chunkmap (replace_indirect (call_polhook rets)) chunks.
+      let f c := [Iimm Sz2 0 (Rimm (index rets c.(ci) 0 orelse 0))] in
+      chunkmap (replace_indirect (call_polhook f)) chunks.
+    Definition polhook2 chunks :=
+      chunkmap (replace_indirect (call_polhook (const nil))) chunks.
   End PolHook.
 End ChunkGeneration.
 Section InstSelection.

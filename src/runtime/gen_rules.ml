@@ -5,6 +5,7 @@ type config = {
 
 let configs = [
   { name = "polhook"; cflags = "-DA8_POL_HOOK=1 -DA8_NO_ASLR=1 -DA8_PRELOAD_REL=1" };
+  { name = "polhook2"; cflags = "-DA8_POL_HOOK=2 -DA8_NO_ASLR=1 -DA8_PRELOAD_REL=1" };
   { name = "base"; cflags = "-DA8_NO_ASLR=1" };
 ]
 

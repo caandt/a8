@@ -226,6 +226,7 @@ Definition replace_code bin code addr entry :=
      u64 text_start;
      u64 text_end;
      u64 new_text_start;
+     u64 new_text_end;
      u64 real_entry;
      u64 nrets;
      u64 dsize;
@@ -237,6 +238,7 @@ Definition rtd d entry :=
     d.(arg).(bi) << 2;
     (d.(arg).(bi) + len d.(arg).(code)) << 2;
     d.(arg).(bi') << 2;
+    d.(bti) << 2;
     entry;
     len d.(rets);
     (len d.(devs)) >> 1
@@ -274,5 +276,3 @@ Definition elf_rw hook bin runtime pol dsets nrelax orig_lr :=
     rtd in
   bin' ← replace_code ((set_nx elf).(data)) content (bi'<<2) (d'.(ai) << 2 + 4);
   return (bin', d').
-Definition elf_rw_polhook bin runtime nrelax :=
-  elf_rw polhook bin runtime (const 0) [] nrelax.

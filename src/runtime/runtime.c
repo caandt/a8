@@ -16,9 +16,9 @@ _start:
   bl init                 // init(argv, envp)
   mov lr, #0
   ldr x19, rtd
-  ldr x19, [x19, #0x18]
+  ldr x19, [x19, %0]
   br x19                  // goto real_entry
-)");
+)" : : "i"(offsetof(rtd_t, entry)));
 
 void cfi_abort() {
   DIE("CFI abort");
@@ -63,7 +63,7 @@ void disable_aslr(long argv, long envp) {
 }
 #endif
 #ifdef A8_POL_HOOK
-char *basename(char *path, char **end) {
+static inline char *basename(char *path, char **end) {
   char *s = path;
   char *last = 0;
   while (*s)
@@ -84,13 +84,25 @@ void init_polhook(long argv) {
   path[4] = '/';
   end[0] = '.';
   end[1] = 'p';
+#if A8_POL_HOOK == 1
   end[2] = 'o';
   end[3] = 'l';
+#else
+  end[2] = 'h';
+  end[3] = '2';
+#endif
   end[4] = '\0';
   long fd = syscall4(SYS_openat, 0, (long)path, O_RDWR, 0);
   rtd_t *rtd = get_rtd();
+#if A8_POL_HOOK == 1
+  unsigned long nrets = rtd->nrets;
   unsigned long nextfree = sizeof(map_header) + rtd->nrets * sizeof(map_entry);
   unsigned long size = nextfree + (1024 * 1024);
+#else
+  unsigned long nrets = (rtd->new_text_end - rtd->new_text_start) >> 2;
+  unsigned long nextfree = rtd->new_text_start;
+  unsigned long size = sizeof(map_header) + nrets * sizeof(map_entry);
+#endif
   char init = 0;
   if (fd < 0) {
     init = 1;
@@ -110,9 +122,9 @@ void init_polhook(long argv) {
   map_header *header = (void*)BASE;
   if (init) {
     header->magic = MAP_HEADER_MAGIC;
-    header->nrets = rtd->nrets;
+    header->nrets = nrets;
     header->nextfree = nextfree;
-  } else if (header->magic != MAP_HEADER_MAGIC || header->nrets != rtd->nrets) {
+  } else if (header->magic != MAP_HEADER_MAGIC || header->nrets != nrets) {
     DIE("Invalid policy file");
   }
   *(long*)path = save_start;

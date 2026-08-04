@@ -9,15 +9,16 @@ log_b:
   add x1, sp, #16
 )");
 void log_b_epilogue();
-static inline void add(unsigned long, unsigned long);
+static inline void add(rtd_t*, unsigned long, unsigned long);
 void _log_b(unsigned long src, unsigned long *dst) {
   rtd_t *rtd = get_rtd();
   if (*dst < rtd->text_end && rtd->text_start <= *dst)
     *dst = lookup(rtd, *dst);
-  add(src, *dst);
+  add(rtd, src, *dst);
   return log_b_epilogue();
 }
-static inline void add(unsigned long key, unsigned long val) {
+#if A8_POL_HOOK == 1
+static inline void add(rtd_t *rtd, unsigned long key, unsigned long val) {
   map_header *header = (map_header*)BASE;
   if (header->nrets <= key) DIE("Invalid polhook key");
   map_entry *e = ((map_entry*)(BASE + sizeof(map_header))) + key;
@@ -39,6 +40,14 @@ static inline void add(unsigned long key, unsigned long val) {
     e = (void*)(BASE + e->nextoffset);
   }
 }
+#else
+static inline void add(rtd_t *rtd, unsigned long key, unsigned long val) {
+  map_header *header = (map_header*)BASE;
+  if (rtd->new_text_end <= val || val < rtd->new_text_start) return;
+  map_entry *e = ((map_entry*)(BASE + sizeof(map_header))) + (val - rtd->new_text_start) / 4;
+  e->count++;
+}
+#endif
 #else
 void log_b() {
   DIE("no pol hook");

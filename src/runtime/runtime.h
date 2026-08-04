@@ -1,6 +1,7 @@
 #include <sys/syscall.h>
 #include <sys/personality.h>
 #include <sys/mman.h>
+#include <stddef.h>
 #include <bits/types/siginfo_t.h>
 #include <ucontext.h>
 #include <signal.h>
@@ -80,6 +81,7 @@ typedef struct {
   unsigned long text_start;
   unsigned long text_end;
   unsigned long new_text_start;
+  unsigned long new_text_end;
   unsigned long entry;
   unsigned long nrets;
   unsigned long dsize;
@@ -118,6 +120,7 @@ static inline unsigned long lookup(const rtd_t *const rtd, unsigned long addr) {
   return rtd->new_text_start + (4 * (n + rtd->d[ans].dev));
 }
 #endif
+#if A8_POL_HOOK == 1
 #define MAP_HEADER_MAGIC 0x7963696c6f70a8a8
 typedef struct {
   unsigned long magic;
@@ -128,3 +131,14 @@ typedef struct {
   unsigned long vals[7];
   unsigned long nextoffset;
 } map_entry;
+#else
+#define MAP_HEADER_MAGIC 0x7963696c6f70a822
+typedef struct {
+  unsigned long magic;
+  unsigned long nrets;
+  unsigned long nextfree;
+} map_header;
+typedef struct {
+  unsigned long count;
+} map_entry;
+#endif
