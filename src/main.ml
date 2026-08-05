@@ -103,7 +103,7 @@ let json =
   let doc = "Dump JSON data to $(docv), or dump to OUTPUT and exit if $(docv) is \"only\"" in
   Arg.(value & opt (some string) None & info ["j"; "json"] ~docv:"FILE" ~doc)
 let lr =
-  let doc = "Rewrite BL to link the original address" in
+  let doc = "Rewrite BL/BLR to link the original address" in
   Arg.(value & flag & info ["L"; "lr"] ~doc)
 let config =
   let make input output runtime pol update_symbols polhook json lr =

@@ -87,7 +87,7 @@ Section ChunkGeneration.
     Notation t := (c.(ct)).
     Notation lbl := (pol c.(ci)).
     Notation dset := (ith dsets lbl orelse []).
-    Definition rw_indirect rn :=
+    Definition rw_indirect rn n :=
       match dset with
       | [] => [Ib Sz1 (BL 0) (Rrt 0)]
       | [d] => [Iimm Sz3 rn (Raddr d); Inum n]
@@ -115,7 +115,13 @@ Section ChunkGeneration.
           else
             [Ib Sz1 t (Raddr (i+sext imm 26))]
       | TBZ _ _ _ imm _ => [Ib Sz2 t (Raddr (i+sext imm 14))]
-      | BR rn | BLR rn | RET rn => rw_indirect rn
+      | BR rn | RET rn => rw_indirect rn n
+      | BLR rn =>
+          if a.(orig_lr) then
+            Iimm Sz3 30 (Rimm ((i+1)<<2))::
+            rw_indirect rn (n lxor (1<<21))
+          else
+            rw_indirect rn n
       end.
   End InstRewriter.
   Definition stage2 := chunkmap rw_inst.
