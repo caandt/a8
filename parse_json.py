@@ -4,22 +4,41 @@ import mmap
 import struct
 import argparse
 import code
+from pprint import pprint
 from pathlib import Path
 from collections import defaultdict
 
-def read_policy(path):
+def read_policy(mm, nrets):
     res = defaultdict(set)
+    for n in range(nrets):
+        start = 24 + n * 64
+        while start:
+            *vals, start = struct.unpack("<8q", mm[start:start+64])
+            vals = [x for x in vals if x]
+            if vals:
+                res[n].update(vals)
+    return res
+
+def read_count(mm, nrets, base):
+    res = {}
+    for n in range(nrets):
+        start = 24 + n * 8
+        count, = struct.unpack("<q", mm[start:start+8])
+        if count:
+            res[base + 4*n] = count
+    return res
+
+def read_data(path):
     with open(path, "rb") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-            _, nrets, _ = struct.unpack("<3q", mm[0:24]);
-            for n in range(nrets):
-                start = 24 + n * 64
-                while start:
-                    *vals, start = struct.unpack("<8q", mm[start:start+64])
-                    vals = [x for x in vals if x]
-                    if vals:
-                        res[n].update(vals)
-    return res
+            magic, nrets, nextfree = struct.unpack("<3q", mm[0:24]);
+            if magic == 0x7963696c6f70a8a8:
+                return read_policy(mm, nrets)
+            elif magic == 0x7963696c6f70a822:
+                return read_count(mm, nrets, nextfree)
+            else:
+                raise Exception("unknown file type")
+
 
 class Table:
     def __init__(self, d):
@@ -121,11 +140,11 @@ class Data:
 
 if __name__ == '__main__':
     parse = argparse.ArgumentParser()
-    parse.add_argument("json", type=Path)
+    parse.add_argument("json", type=Path, nargs="?")
     parse.add_argument("-p", "--pol", type=Path)
     args = parse.parse_args()
-    j = Data(args.json)
-    p = read_policy(args.pol) if args.pol else None
+    j = Data(args.json) if args.json else None
+    p = read_data(args.pol) if args.pol else None
     try:
         import _pyrepl.main
         _pyrepl.main.interactive_console()
